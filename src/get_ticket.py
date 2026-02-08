@@ -37,16 +37,16 @@ async def get_ticket(bot, interaction: discord.Interaction, category, driver, yo
                 else:
                     print(f'無法找到頻道 {channel_id}')    
             
-            if not await login(driver, your_web_url, your_account, your_password):
+            if not await asyncio.to_thread(login, driver, your_web_url, your_account, your_password):
                 # 這裡改用 followup 因為 response 已經用過了
                 channel = bot.get_channel(int(interaction.channel_id))
                 if channel:
                     await channel.send("登入系統時出現問題")
                 return
             
-            await getImage(driver, category)
+            await asyncio.to_thread(getImage, driver, category)
 
-            res_num = get_ticket_num(driver, category)
+            res_num = await asyncio.to_thread(get_ticket_num, driver, category)
             if res_num is None:
                 channel = bot.get_channel(int(interaction.channel_id))
                 if channel:
@@ -110,7 +110,7 @@ async def get_ticket(bot, interaction: discord.Interaction, category, driver, yo
             for sent_message in welcome_messages_dict.values():
                 await sent_message.delete()
             
-            if not await logout(driver):
+            if not await asyncio.to_thread(logout, driver):
                 print("登出系統時出現問題")
 
             finish_messages_dict = {}

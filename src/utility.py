@@ -57,7 +57,7 @@ def handle_error_diagnostics(driver, error_summary):
         print(f"診斷失敗: {e}", flush=True)
 
 
-async def login(driver, url, account, password):
+def login(driver, url, account, password):
     stage = "初始化"
     try:
         # 1. 載入 URL (建議直接用 sso2_go.php 的網址更穩)
@@ -119,7 +119,7 @@ async def login(driver, url, account, password):
     pass
 
 
-async def logout(driver):
+def logout(driver):
     try:
         if driver.session_id is None:
             raise WebDriverException("Driver 已經被關閉。")
@@ -181,7 +181,7 @@ def crop_center(image_path, output_path, crop_width, crop_height):
     # 保存裁剪後的圖像
     cropped_img.save(output_path)
 
-async def getImage(driver, category):
+def getImage(driver, category):
     # 建立等待工具，最多等 15 秒
     wait = WebDriverWait(driver, 15)
     
@@ -266,8 +266,8 @@ async def check_ticket_num(driver, ticket_num, category):
     start_time = time.time()
     while counter < 20 and (time.time() - start_time) < TIMEOUT_SECONDS:
         await asyncio.sleep(10)
-        driver.refresh()
-        system_ticket_num = get_ticket_num(driver, category)
+        await asyncio.to_thread(driver.refresh)
+        system_ticket_num = await asyncio.to_thread(get_ticket_num, driver, category)
         if system_ticket_num == None:
             success = "error"
             break
