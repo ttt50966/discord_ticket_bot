@@ -6,7 +6,7 @@ import os
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
-
+from selenium.webdriver.chrome.service import Service
 
 from src.get_ticket import get_ticket
 from src.utility import BrowserCriticalError
@@ -48,8 +48,9 @@ class WebDriverManager:
 
     def create_driver(self):
         print("正在啟動新的 Chrome 實例...")
+        my_service = Service(executable_path="/usr/bin/chromedriver")
         # 這裡不需要 ChromeDriverManager，因為 Dockerfile 已經裝好固定路徑的 Chrome
-        return webdriver.Chrome(options=self.options)
+        return webdriver.Chrome(service=my_service, options=self.options)
 
     def get_driver(self):
         if self.driver is None:
@@ -77,6 +78,7 @@ chrome_options.add_argument("--window-size=1920,1080")  # 模擬螢幕解析度
 chrome_options.add_argument("--no-sandbox")  # 避免權限問題
 chrome_options.add_argument("--disable-dev-shm-usage")  # 避免共享內存不足
 
+chrome_options.binary_location = "/usr/bin/chromium"
 # 關鍵：設定遇到所有彈窗自動點擊「確定」
 chrome_options.set_capability("unhandledPromptBehavior", "accept")
 # 建立 WebDriver 管理實例
@@ -170,7 +172,7 @@ async def on_message(message):
             for channel_id in target_channel_ids:
                 channel = bot.get_channel(int(channel_id))
                 if channel :
-                    await channel.send(f"""呆呆獸的游泳池票卷補足了喔喔好開心 ><
+                    await channel.send(f"""{bot_name_env}的游泳池票卷補足了喔喔好開心 ><
             """
         )
                 else:
@@ -182,7 +184,7 @@ async def on_message(message):
             for channel_id in target_channel_ids:
                 channel = bot.get_channel(int(channel_id))
                 if channel :
-                    await channel.send(f"""呆呆獸的健身中心票卷補足了喔喔好開心 ><
+                    await channel.send(f"""{bot_name_env}的健身中心票卷補足了喔喔好開心 ><
             """
         )
                 else:
@@ -193,7 +195,7 @@ async def on_message(message):
             for channel_id in target_channel_ids:
                 channel = bot.get_channel(int(channel_id))
                 if channel :
-                    await channel.send(f"""呆呆獸回復正常了喔可以呼叫我了喔 ฅ^•ﻌ•^ฅ
+                    await channel.send(f"""{bot_name_env}回復正常了喔可以呼叫我了喔 ฅ^•ﻌ•^ฅ
             """
         )
                 else:
@@ -235,7 +237,7 @@ async def handle_ticket_request(interaction: discord.Interaction, category: str)
     
     
 
-@bot.tree.command(name="help", description="呆呆獸怎麼用")
+@bot.tree.command(name="help", description=f"{bot_name_env}怎麼用")
 async def ticket(interaction: discord.Interaction):
     if str(interaction.channel_id) in target_channel_ids:
         # 告訴 Discord 正在處理，延遲回應
@@ -252,10 +254,10 @@ async def ticket(interaction: discord.Interaction):
             return
         
         
-        qrcode = discord.File(qrcode_path, filename="payment_qrcode.png")
+       # qrcode = discord.File(qrcode_path, filename="payment_qrcode.png")
 
         #如果沒有付款碼，請把下面程式碼的註解消除，並註解掉上一行
-        #qrcode = discord.File(qrcode_path, filename="empty.png")
+        qrcode = discord.File(qrcode_path, filename="empty.png")
         
         # 發送消息並附加文件
         await interaction.followup.send(
@@ -269,21 +271,21 @@ async def ticket(interaction: discord.Interaction):
 
 請在給泳驗刷票前就把 QR Code 生成好喔，不然泳驗可能會覺得很奇怪(◉３◉)
 
-台大游泳池票卷費用：**30 元**
+台大游泳池票卷費用：**50 元**
 
-健身中心票卷費用：**25 元**
+健身中心票卷費用：**40  元**
 
 在使用 QR Code 成功後，可以用 **轉帳** 、 **Line Pay** 或是 **街口支付** 
 
-轉帳資料：**(700) 中華郵政 00610490236328**
+轉帳資料：**(700) 中華郵政 00814531372557**
 
 請幫我在轉帳備註欄填上 **姓名** 或是 **Discord 暱稱** 喔
 
-Line pay 帳號 ID： **ycchang0324**
+Line pay 帳號 ID： **ttt50966**
 
 街口支付可以儲存下面的付款碼，再使用 APP 付款
 
-如果有其他問題，歡迎私訊 **張原嘉** (´･ω･`)
+如果有其他問題，歡迎私訊 **邱冠嘉** (´･ω･`)
             """,
             file=qrcode,
             ephemeral=True

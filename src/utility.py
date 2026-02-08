@@ -62,13 +62,13 @@ async def login(driver, url, account, password):
     try:
         # 1. 載入 URL (建議直接用 sso2_go.php 的網址更穩)
         stage = "載入 SSO 頁面"
-        driver.set_page_load_timeout(25)
+        driver.set_page_load_timeout(60)
         try:
             driver.get(url)
         except TimeoutException:
             driver.execute_script("window.stop();")
             
-        wait = WebDriverWait(driver, 20, poll_frequency=0.5)
+        wait = WebDriverWait(driver, 60, poll_frequency=0.5)
 
         # 2. 等待 ADFS 載入
         stage = "等待 ADFS 頁面載入"

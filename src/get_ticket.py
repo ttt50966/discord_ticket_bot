@@ -147,5 +147,5 @@ async def get_ticket(bot, interaction: discord.Interaction, category, driver, yo
                 asyncio.create_task(delayed_delete(finish_messages_dict.values()))
         
     else:
-        # 頻道不對的回應
-        await interaction.response.send_message(f"請在 **{target_channel_name}** 頻道中發送 **/給我{category}票** 以索取 {category} QR Code 喔", ephemeral=True)
+        # 頻道不對的回應，改用 followup 以避免重複回應錯誤
+        await interaction.followup.send(f"請在 {target_channel_name} 頻道中發送 /給我{category}票 以索取 {category} QR Code 喔", ephemeral=True)
