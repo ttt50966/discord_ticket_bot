@@ -57,24 +57,24 @@ def handle_error_diagnostics(driver, error_summary):
         print(f"診斷失敗: {e}", flush=True)
 
 
-async def login(driver, url, account, password):
+async def _login_once(driver, url, account, password):
+    """單次登入嘗試，成功回傳 True，失敗回傳 False。"""
     stage = "初始化"
     try:
-        # 1. 載入 URL (建議直接用 sso2_go.php 的網址更穩)
+        # 1. 載入 URL
         stage = "載入 SSO 頁面"
         driver.set_page_load_timeout(120)
         try:
             driver.get(url)
         except TimeoutException:
             driver.execute_script("window.stop();")
-            
+
         wait = WebDriverWait(driver, 120, poll_frequency=0.5)
 
         # 2. 等待 ADFS 載入
         stage = "等待 ADFS 頁面載入"
-        # 這裡改用自定義 Lambda，增加 NoneType 檢查
         wait.until(lambda d: d.current_url and "adfs.ntu.edu.tw" in d.current_url)
-        
+
         # 3. 填寫帳號
         stage = "填寫帳號"
         user_input = wait.until(EC.presence_of_element_located((By.NAME, "ctl00$ContentPlaceHolder1$UsernameTextBox")))
@@ -91,20 +91,17 @@ async def login(driver, url, account, password):
         login_btn = driver.find_element(By.NAME, "ctl00$ContentPlaceHolder1$SubmitButton")
         driver.execute_script("arguments[0].click();", login_btn)
 
-        # 5. 驗證回傳 (關鍵修正點)
+        # 5. 驗證回傳
         stage = "驗證登入結果回傳"
 
-        # 使用更穩健的驗證方式：等待「網址包含 rent」且「當前網址不為空」
         def check_login_success(d):
             url = d.current_url
             if url is None:
                 return False
-            # 只要跳回租借系統網域，或者是已經進入 member 頁面，就判定成功
             return "rent.pe.ntu.edu.tw" in url or "member" in url
 
         wait.until(check_login_success)
-        
-        # 額外小保險：如果是回到 member 頁面，確保頁面不是空的
+
         if "member" in (driver.current_url or ""):
             print("DEBUG: 已確認跳轉至會員頁面", flush=True)
 
@@ -112,11 +109,21 @@ async def login(driver, url, account, password):
         return True
 
     except Exception as e:
-        # 這裡會捕捉到剛剛那個 NoneType 錯誤並記錄
         handle_error_diagnostics(driver, f"❌ 登入失敗於 [{stage}]: {str(e)}")
         return False
-    """自定義瀏覽器嚴重錯誤"""
-    pass
+
+
+async def login(driver, url, account, password, max_retries=3, retry_delay=5):
+    """帶自動重試的登入函數，適合網路不穩的環境（例如樹莓派 WiFi）。"""
+    for attempt in range(1, max_retries + 1):
+        print(f"🔄 登入嘗試 {attempt}/{max_retries}...", flush=True)
+        if await _login_once(driver, url, account, password):
+            return True
+        if attempt < max_retries:
+            print(f"⏳ 登入失敗，{retry_delay} 秒後重試...", flush=True)
+            await asyncio.sleep(retry_delay)
+    print(f"❌ 已達最大重試次數 ({max_retries})，登入放棄。", flush=True)
+    return False
 
 
 async def logout(driver):
