@@ -15,6 +15,7 @@ services:
     volumes:
       - ./log:/app/log      # 確保 logs 存留在主機
       - ./img:/app/img      # 確保 QR code 和截圖存留在主機
+      - ./data:/app/data    # 確保 unpaid 名單存留在主機
 
     healthcheck:
         # 修改後的 test 指令：只要 find 找得到符合時間的檔案就回傳 0 (成功)，否則 1 (失敗)

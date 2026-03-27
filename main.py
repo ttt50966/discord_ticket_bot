@@ -10,6 +10,7 @@ from selenium.webdriver.chrome.service import Service
 
 from src.get_ticket import get_ticket
 from src.utility import BrowserCriticalError
+from src.unpaid_list import is_unpaid, add_unpaid, remove_unpaid, list_unpaid
 from dotenv import load_dotenv
 
 import time
@@ -40,6 +41,7 @@ your_web_url = os.getenv('URL')  # 租借系統網址
 token = os.getenv('TOKEN')
 maintainer_id_env = os.getenv('MAINTAINER_ID')
 bot_name_env = os.getenv('BOT_NAME')
+line_id_env = os.getenv('LINE_ID')
 
 class WebDriverManager:
     def __init__(self, options):
@@ -199,7 +201,44 @@ async def on_message(message):
             """
         )
                 else:
-                    print(f'無法找到頻道 {channel_id}') 
+                    print(f'無法找到頻道 {channel_id}')
+
+        # unpaid 欠款名單管理指令
+        parts = message.content.strip().split()
+        if len(parts) >= 2 and parts[0].lower() == "unpaid":
+            sub = parts[1].lower()
+
+            if sub == "add" and len(parts) == 3:
+                try:
+                    target_id = int(parts[2])
+                    target_user = await bot.fetch_user(target_id)
+                    username = target_user.display_name if target_user else str(target_id)
+                    add_unpaid(target_id, username)
+                    await message.reply(f"✅ 已將 **{username}**（`{target_id}`）加入欠款名單")
+                except ValueError:
+                    await message.reply("❌ 請輸入有效的 User ID，例如：`unpaid add 123456789`")
+                except Exception as e:
+                    await message.reply(f"❌ 找不到這個 User ID 或發生錯誤：{e}")
+
+            elif sub == "remove" and len(parts) == 3:
+                try:
+                    target_id = int(parts[2])
+                    success = remove_unpaid(target_id)
+                    if success:
+                        await message.reply(f"✅ 已將 `{target_id}` 從欠款名單移除")
+                    else:
+                        await message.reply(f"❌ `{target_id}` 不在欠款名單中")
+                except ValueError:
+                    await message.reply("❌ 請輸入有效的 User ID，例如：`unpaid remove 123456789`")
+
+            elif sub == "list":
+                data = list_unpaid()
+                if not data:
+                    await message.reply("📋 欠款名單目前是空的")
+                else:
+                    lines = [f"• `{uid}` — {name}" for uid, name in data.items()]
+                    await message.reply("📋 **目前欠款名單：**\n" + "\n".join(lines))
+
     # 处理其他命令
     await bot.process_commands(message)
 
@@ -225,6 +264,20 @@ async def gym_ticket(interaction: discord.Interaction):
 # 定义一个 Slash 命令
 # 建立一個統一的處理函式
 async def handle_ticket_request(interaction: discord.Interaction, category: str):
+    # 檢查是否在欠款名單內
+    if is_unpaid(interaction.user.id):
+        contact_msg = "• Discord：私訊 **冠嘉**\n"
+        if line_id_env:
+            contact_msg += f"• Line：**{line_id_env}**\n"
+        await interaction.followup.send(
+            f"哎呀，你目前還有尚未完成的付款紀錄，暫時無法申請票卷 (´･ω･`)\n\n"
+            f"麻煩先完成轉帳後，再透過以下方式通知我確認一下喔：\n\n"
+            f"{contact_msg}\n"
+            f"確認後就會幫你解除囉，感謝你的配合 ><",
+            ephemeral=True
+        )
+        return
+
     try:
         driver = driver_manager.get_driver()  # 獲取可用的 driver
         
