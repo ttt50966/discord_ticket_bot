@@ -173,3 +173,6 @@ img/payment_qrcode.png
 
 # macOS
 .DS_Store
+
+# claude
+.claude/
