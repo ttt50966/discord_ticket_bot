@@ -176,3 +176,6 @@ img/payment_qrcode.png
 
 # claude
 .claude/
+
+# unpaid list (runtime data, not tracked)
+data/unpaid_users.json
