@@ -48,15 +48,16 @@ The setting for discord bot is shown in the following picture.
 
 3. Add the payment QRCode as payment_qrcode.png in img folder.
 
-4. Create .env file, copy the text in .env.example and fill in  
-(1) Discord channel IDs(can be multiple, separated by colons)  
-(2) Discord channel name(only for main channel's name)    
-(3) NTU account  
-(4) NTU password  
-(5) NTU rental system sso url: https://rent.pe.ntu.edu.tw/sso2_go.php?BUrl= 
-(6) Discord bot token.    
-(7) Maintainer's ID  
+4. Create .env file, copy the text in .env.example and fill in
+(1) Discord channel IDs(can be multiple, separated by colons)
+(2) Discord channel name(only for main channel's name)
+(3) NTU account
+(4) NTU password
+(5) NTU rental system sso url: https://rent.pe.ntu.edu.tw/sso2_go.php?BUrl=
+(6) Discord bot token.
+(7) Maintainer's ID
 (8) Bot Name
+(9) (Optional) Line ID — if provided, it will be shown in the payment reminder message sent to unpaid users
 
 5. Edit the payment message
 ```python
@@ -113,12 +114,34 @@ The bot will send the message that the swimming tickets is full.
 
 The bot will send the message that the gym tickets is full.
 
-4.    
+4.
 ```sh
    fixed
 ```
 
 The bot will send the message that the bot has been fixed.
+
+5.
+```sh
+   unpaid add <user_id>
+```
+
+Add a user to the unpaid list by their Discord User ID. The user will be blocked from requesting tickets until removed.
+To find a user's ID: enable Developer Mode in Discord settings, then right-click the user and select "Copy User ID".
+
+6.
+```sh
+   unpaid remove <user_id>
+```
+
+Remove a user from the unpaid list, restoring their ability to request tickets.
+
+7.
+```sh
+   unpaid list
+```
+
+Display all users currently on the unpaid list.
 
 <!-- CONTACT -->
 ## Contact
