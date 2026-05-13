@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 
 import time
 import asyncio
+import datetime
 
 # 1. 建立 Bot 類別來處理同步 (這樣最穩)
 class MyBot(commands.Bot):
@@ -238,6 +239,29 @@ async def on_message(message):
                 else:
                     lines = [f"• `{uid}` — {name}" for uid, name in data.items()]
                     await message.reply("📋 **目前欠款名單：**\n" + "\n".join(lines))
+
+            elif sub == "check":
+                # 掃最近 14 天的 DM，找沒有 👍（已付）也沒有 ❤️（未使用）的票卷紀錄
+                maintainer = await bot.fetch_user(int(maintainer_id_env))
+                dm = maintainer.dm_channel or await maintainer.create_dm()
+                cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=14)
+
+                unpaid = []
+                async for msg in dm.history(after=cutoff, oldest_first=False, limit=300):
+                    if msg.author.id != bot.user.id:
+                        continue
+                    if "成功使用" not in msg.content:
+                        continue
+                    paid = any(str(r.emoji) == "👍" for r in msg.reactions)
+                    unused = any(str(r.emoji) == "❤️" for r in msg.reactions)
+                    if not paid and not unused:
+                        unpaid.append(msg.content)
+
+                if not unpaid:
+                    await message.reply("✅ 最近 14 天沒有待催繳紀錄")
+                else:
+                    lines = "\n".join(f"• {r}" for r in unpaid)
+                    await message.reply(f"💸 **待催繳（最近 14 天，共 {len(unpaid)} 筆）：**\n{lines}")
 
     # 处理其他命令
     await bot.process_commands(message)
