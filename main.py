@@ -250,7 +250,7 @@ async def on_message(message):
                 async for msg in dm.history(after=cutoff, oldest_first=False, limit=300):
                     if msg.author.id != bot.user.id:
                         continue
-                    if "成功使用" not in msg.content:
+                    if "成功使用" not in msg.content or "待催繳" in msg.content:
                         continue
                     paid = any(str(r.emoji) == "👍" for r in msg.reactions)
                     unused = any(str(r.emoji) == "❤️" for r in msg.reactions)
