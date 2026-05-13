@@ -255,12 +255,15 @@ async def on_message(message):
                     paid = any(str(r.emoji) == "👍" for r in msg.reactions)
                     unused = any(str(r.emoji) == "❤️" for r in msg.reactions)
                     if not paid and not unused:
-                        unpaid.append(msg.content)
+                        unpaid.append((msg.created_at, msg.content))
 
                 if not unpaid:
                     await message.reply("✅ 最近 14 天沒有待催繳紀錄")
                 else:
-                    lines = "\n".join(f"• {r}" for r in unpaid)
+                    lines = "\n".join(
+                        f"• `{ts.astimezone().strftime('%m/%d')}` {content}"
+                        for ts, content in unpaid
+                    )
                     await message.reply(f"💸 **待催繳（最近 14 天，共 {len(unpaid)} 筆）：**\n{lines}")
 
     # 处理其他命令
