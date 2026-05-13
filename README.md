@@ -143,6 +143,22 @@ Remove a user from the unpaid list, restoring their ability to request tickets.
 
 Display all users currently on the unpaid list.
 
+8.
+```sh
+   unpaid check
+```
+
+Scan the bot's DM history from the last 14 days and list all ticket usage records that have **no reaction**.
+
+**Reaction convention:**
+- 👍 — payment received (skip)
+- ❤️ — ticket unused / no charge needed (skip)
+- *(no reaction)* — pending payment, will appear in the result
+
+---
+
+> **Fork Note:** The entire `unpaid` command series (`add`, `remove`, `list`, `check`) was added in this fork and co-authored with [Claude](https://claude.ai) (Anthropic).
+
 <!-- CONTACT -->
 ## Contact
 
