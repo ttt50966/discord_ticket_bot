@@ -58,12 +58,12 @@ async def get_ticket(bot, interaction: discord.Interaction, category, driver, yo
             # 確認票卷數量
             if ticket_num < 2:
                 channel = bot.get_channel(int(interaction.channel_id))
-                if channel: await channel.send(f"{category} 票卷不足，請加值><")
+                if channel: await channel.send(f"{category} 票卷不足，請加值><（剩餘 {ticket_num} 張）")
             else:
                 if ticket_num < 6:
                     # 頻道廣播訊息依然用 channel.send
                     channel = bot.get_channel(int(interaction.channel_id))
-                    if channel: await channel.send(f"{category} 票卷即將不足，請加值><")
+                    if channel: await channel.send(f"{category} 票卷即將不足，請加值><（剩餘 {ticket_num} 張）")
                 
                 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
                 image_path = os.path.join(base_dir, 'img', 'screenshot_crop.png')
