@@ -9,7 +9,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 
 from src.get_ticket import get_ticket
-from src.utility import BrowserCriticalError
+from src.utility import BrowserCriticalError, login, logout, get_ticket_num
 from src.unpaid_list import is_unpaid, add_unpaid, remove_unpaid, list_unpaid
 from dotenv import load_dotenv
 
@@ -316,6 +316,51 @@ async def handle_ticket_request(interaction: discord.Interaction, category: str)
         os._exit(1) # 強制結束程式，觸發 Docker restart
     
     
+
+@bot.tree.command(name="剩餘票數", description="查詢游泳池及健身中心剩餘票卷張數")
+async def remaining_tickets(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+    asyncio.create_task(handle_remaining_check(interaction))
+
+async def handle_remaining_check(interaction: discord.Interaction):
+    if str(interaction.channel_id) not in target_channel_ids:
+        await interaction.followup.send(f"請在 {target_channel_name} 頻道中使用此指令喔", ephemeral=True)
+        return
+
+    if bot.is_ticket_generating:
+        await interaction.followup.send("⚠️ 目前機器人正在處理票卷，無法即時查詢，請稍後再試", ephemeral=True)
+        return
+
+    try:
+        driver = driver_manager.get_driver()
+
+        if not await login(driver, your_web_url, your_account, your_password):
+            await interaction.followup.send("❌ 登入系統時出現問題，無法查詢票數", ephemeral=True)
+            return
+
+        swim_num = get_ticket_num(driver, "游泳池")
+        gym_num = get_ticket_num(driver, "健身中心")
+
+        await logout(driver)
+
+        swim_text = f"**{swim_num}** 張" if swim_num is not None else "查詢失敗"
+        gym_text = f"**{gym_num}** 張" if gym_num is not None else "查詢失敗"
+
+        await interaction.followup.send(
+            f"**目前剩餘票卷：**\n\n"
+            f"🏊 游泳池：{swim_text}\n"
+            f"🏋️ 健身中心：{gym_text}",
+            ephemeral=True
+        )
+
+    except BrowserCriticalError:
+        await interaction.followup.send("❌ 系統發生嚴重錯誤，請聯絡管理員", ephemeral=True)
+        import os
+        os._exit(1)
+    except Exception as e:
+        print(f"查詢剩餘票數時發生錯誤: {e}")
+        await interaction.followup.send("❌ 查詢時發生錯誤，請稍後再試", ephemeral=True)
+
 
 @bot.tree.command(name="help", description=f"{bot_name_env}怎麼用")
 async def ticket(interaction: discord.Interaction):
