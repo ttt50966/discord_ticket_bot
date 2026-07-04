@@ -57,8 +57,8 @@ def handle_error_diagnostics(driver, error_summary):
         print(f"診斷失敗: {e}", flush=True)
 
 
-async def _login_once(driver, url, account, password):
-    """單次登入嘗試，成功回傳 True，失敗回傳 False。"""
+def _login_once(driver, url, account, password):
+    """單次登入嘗試（同步阻塞，須經 asyncio.to_thread 呼叫），成功回傳 True，失敗回傳 False。"""
     stage = "初始化"
     try:
         # 1. 載入 URL
@@ -117,7 +117,7 @@ async def login(driver, url, account, password, max_retries=3, retry_delay=5):
     """帶自動重試的登入函數，適合網路不穩的環境（例如樹莓派 WiFi）。"""
     for attempt in range(1, max_retries + 1):
         print(f"🔄 登入嘗試 {attempt}/{max_retries}...", flush=True)
-        if await _login_once(driver, url, account, password):
+        if await asyncio.to_thread(_login_once, driver, url, account, password):
             return True
         if attempt < max_retries:
             print(f"⏳ 登入失敗，{retry_delay} 秒後重試...", flush=True)
@@ -126,7 +126,7 @@ async def login(driver, url, account, password, max_retries=3, retry_delay=5):
     return False
 
 
-async def logout(driver):
+def _logout_sync(driver):
     try:
         if driver.session_id is None:
             raise WebDriverException("Driver 已經被關閉。")
@@ -168,6 +168,10 @@ async def logout(driver):
         return False
 
 
+async def logout(driver):
+    return await asyncio.to_thread(_logout_sync, driver)
+
+
 def crop_center(image_path, output_path, crop_width, crop_height):
     # 開啟截圖
     img = Image.open(image_path)
@@ -188,7 +192,7 @@ def crop_center(image_path, output_path, crop_width, crop_height):
     # 保存裁剪後的圖像
     cropped_img.save(output_path)
 
-async def getImage(driver, category):
+def _get_image_sync(driver, category):
     # 建立等待工具，最多等 15 秒
     wait = WebDriverWait(driver, 15)
     
@@ -224,9 +228,6 @@ async def getImage(driver, category):
 
         # 6. 截圖與裁切
         driver.save_screenshot(image_path)
-        
-        # 這裡假設你的 crop_center 已經在 utility.py 中定義好了
-        from src.utility import crop_center
         crop_center(image_path, image_path_crop, 400, 700)
         
         print(f"✅ 截圖已儲存並裁切：{image_path_crop}")
@@ -243,6 +244,10 @@ async def getImage(driver, category):
     except Exception as e:
         print(f"❌ getImage 發生未知錯誤: {str(e)}", flush=True)
         raise e
+
+
+async def getImage(driver, category):
+    await asyncio.to_thread(_get_image_sync, driver, category)
 
 
 def get_ticket_num(driver, category):
@@ -273,8 +278,8 @@ async def check_ticket_num(driver, ticket_num, category):
     start_time = time.time()
     while counter < 20 and (time.time() - start_time) < TIMEOUT_SECONDS:
         await asyncio.sleep(10)
-        driver.refresh()
-        system_ticket_num = get_ticket_num(driver, category)
+        await asyncio.to_thread(driver.refresh)
+        system_ticket_num = await asyncio.to_thread(get_ticket_num, driver, category)
         if system_ticket_num is None:
             return None
         elif int(system_ticket_num) == ticket_num - 1:
