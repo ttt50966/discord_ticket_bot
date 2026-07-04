@@ -267,7 +267,7 @@ def get_ticket_num(driver, category):
         return None
 
 async def check_ticket_num(driver, ticket_num, category):
-    success = False
+    """輪詢票數確認 QR Code 是否被使用。回傳 True=已使用、False=逾時未使用、None=查詢票數失敗"""
     counter = 0
     TIMEOUT_SECONDS = 5 * 60  # 5 分鐘
     start_time = time.time()
@@ -275,12 +275,10 @@ async def check_ticket_num(driver, ticket_num, category):
         await asyncio.sleep(10)
         driver.refresh()
         system_ticket_num = get_ticket_num(driver, category)
-        if system_ticket_num == None:
-            success = "error"
-            break
+        if system_ticket_num is None:
+            return None
         elif int(system_ticket_num) == ticket_num - 1:
-            success = True
-            break
+            return True
         counter += 1
         print(f"現在的 counter: {counter}")
-    return success
+    return False
