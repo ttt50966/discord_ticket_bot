@@ -30,7 +30,8 @@ class MyBot(commands.Bot):
         print(f"Slash 指令同步完成！")
 
 bot = MyBot()
-bot.is_ticket_generating = False
+# driver 的獨占鎖：票卷生成、剩餘票數查詢、healthcheck 探測共用同一個 driver，須互斥
+bot.ticket_lock = asyncio.Lock()
 
 # 載入 .env 檔案中的環境變數
 load_dotenv()
@@ -92,10 +93,16 @@ async def health_check_task():
     """配合 Docker Healthcheck 使用"""
     while True:
         try:
-            # 檢查 Selenium 是否還活著
-            driver = driver_manager.get_driver()
-            _ = driver.title 
-            
+            if bot.ticket_lock.locked():
+                # 票卷生成中 driver 正在忙，不去探測（get_driver 誤判失效會把
+                # 使用中的 driver 砍掉重建），bot 本身活著就照常更新心跳
+                pass
+            else:
+                async with bot.ticket_lock:
+                    # 檢查 Selenium 是否還活著
+                    driver = await asyncio.to_thread(driver_manager.get_driver)
+                    _ = await asyncio.to_thread(getattr, driver, "title")
+
             # 更新心跳檔案
             with open("/tmp/heartbeat", "w") as f:
                 f.write(str(time.time()))
@@ -306,9 +313,9 @@ async def handle_ticket_request(interaction: discord.Interaction, category: str)
         return
 
     try:
-        driver = driver_manager.get_driver()  # 獲取可用的 driver
-        
-        await get_ticket(bot, interaction, category, driver, your_web_url, your_account, your_password, target_channel_ids, target_channel_name, maintainer_id_env)
+        # driver 改由 get_ticket 在取得鎖之後才向 driver_manager 索取，
+        # 避免生成途中被 healthcheck 或其他指令重建
+        await get_ticket(bot, interaction, category, driver_manager, your_web_url, your_account, your_password, target_channel_ids, target_channel_name, maintainer_id_env)
     except BrowserCriticalError:
         print("💥 偵測到致命錯誤，通知管理員並重啟容器...")
         # 可以在這裡加一個發送 Discord 訊息給管理員的邏輯
@@ -327,21 +334,22 @@ async def handle_remaining_check(interaction: discord.Interaction):
         await interaction.followup.send(f"請在 {target_channel_name} 頻道中使用此指令喔", ephemeral=True)
         return
 
-    if bot.is_ticket_generating:
+    if bot.ticket_lock.locked():
         await interaction.followup.send("⚠️ 目前機器人正在處理票卷，無法即時查詢，請稍後再試", ephemeral=True)
         return
 
     try:
-        driver = driver_manager.get_driver()
+        async with bot.ticket_lock:
+            driver = await asyncio.to_thread(driver_manager.get_driver)
 
-        if not await login(driver, your_web_url, your_account, your_password):
-            await interaction.followup.send("❌ 登入系統時出現問題，無法查詢票數", ephemeral=True)
-            return
+            if not await login(driver, your_web_url, your_account, your_password):
+                await interaction.followup.send("❌ 登入系統時出現問題，無法查詢票數", ephemeral=True)
+                return
 
-        swim_num = get_ticket_num(driver, "游泳池")
-        gym_num = get_ticket_num(driver, "健身中心")
+            swim_num = await asyncio.to_thread(get_ticket_num, driver, "游泳池")
+            gym_num = await asyncio.to_thread(get_ticket_num, driver, "健身中心")
 
-        await logout(driver)
+            await logout(driver)
 
         swim_text = f"**{swim_num}** 張" if swim_num is not None else "查詢失敗"
         gym_text = f"**{gym_num}** 張" if gym_num is not None else "查詢失敗"

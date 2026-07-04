@@ -3,10 +3,10 @@ import asyncio
 from src.utility import login, logout, getImage, get_ticket_num, check_ticket_num, BrowserCriticalError
 import os
 
-async def get_ticket(bot, interaction: discord.Interaction, category, driver, your_web_url, your_account, your_password, target_channel_ids, target_channel_name, maintainer_id_env):
+async def get_ticket(bot, interaction: discord.Interaction, category, driver_manager, your_web_url, your_account, your_password, target_channel_ids, target_channel_name, maintainer_id_env):
 
     # 全域狀態檢查
-    if bot.is_ticket_generating:
+    if bot.ticket_lock.locked():
         # 如果已經 defer 過，要用 followup
         await interaction.followup.send("⚠️ 目前已有票卷正在生成中，請稍候約 5 分鐘再試。", ephemeral=True)
         return
@@ -22,10 +22,12 @@ async def get_ticket(bot, interaction: discord.Interaction, category, driver, yo
     welcome_messages_dict = {}
     finish_messages_dict = {}
     logged_in = False
+    driver = None
 
+    # 鎖定 driver（同一時間只允許一件事使用瀏覽器）
+    await bot.ticket_lock.acquire()
     try:
-        # 鎖定狀態
-        bot.is_ticket_generating = True
+        driver = await asyncio.to_thread(driver_manager.get_driver)
 
         await interaction.followup.send(f"{sender_name} 您好，請稍等 30 秒~", ephemeral=True)
 
@@ -136,26 +138,27 @@ async def get_ticket(bot, interaction: discord.Interaction, category, driver, yo
         except Exception:
             pass
     finally:
-        # 無論如何都解鎖
-        bot.is_ticket_generating = False
+        try:
+            # 清理 welcome 訊息（含錯誤與 early return 路徑）
+            for sent_message in welcome_messages_dict.values():
+                try:
+                    await sent_message.delete()
+                except Exception as e:
+                    print(f"刪除等待訊息失敗: {e}")
 
-        # 清理 welcome 訊息（含錯誤與 early return 路徑）
-        for sent_message in welcome_messages_dict.values():
-            try:
-                await sent_message.delete()
-            except Exception as e:
-                print(f"刪除等待訊息失敗: {e}")
+            if logged_in:
+                if not await logout(driver):
+                    print("登出系統時出現問題")
 
-        if logged_in:
-            if not await logout(driver):
-                print("登出系統時出現問題")
+            # 使用背景任務處理 60 秒後的刪除，不影響主邏輯
+            async def delayed_delete(msgs):
+                await asyncio.sleep(60)
+                for m in msgs:
+                    try: await m.delete()
+                    except: pass
 
-        # 使用背景任務處理 60 秒後的刪除，不影響主邏輯
-        async def delayed_delete(msgs):
-            await asyncio.sleep(60)
-            for m in msgs:
-                try: await m.delete()
-                except: pass
-
-        if finish_messages_dict:
-            asyncio.create_task(delayed_delete(finish_messages_dict.values()))
+            if finish_messages_dict:
+                asyncio.create_task(delayed_delete(finish_messages_dict.values()))
+        finally:
+            # 無論清理過程發生什麼事都要解鎖，否則整個 bot 會卡死
+            bot.ticket_lock.release()
