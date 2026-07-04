@@ -35,15 +35,39 @@ bot.ticket_lock = asyncio.Lock()
 
 # 載入 .env 檔案中的環境變數
 load_dotenv()
-target_channel_ids = os.getenv('CHANNEL_IDS').split(',')
-target_channel_name = os.getenv('CHANNEL_NAME')
-your_account = os.getenv('ACCOUNT')  # NTU COOL 帳號
-your_password = os.getenv('PASSWORD')  # NTU COOL 密碼
-your_web_url = os.getenv('URL')  # 租借系統網址
-token = os.getenv('TOKEN')
-maintainer_id_env = os.getenv('MAINTAINER_ID')
-bot_name_env = os.getenv('BOT_NAME')
-line_id_env = os.getenv('LINE_ID')
+
+def _require_env(name: str) -> str:
+    value = os.getenv(name)
+    if not value or not value.strip():
+        raise SystemExit(f"缺少環境變數 {name}，請檢查 .env 設定")
+    return value.strip()
+
+target_channel_ids = [cid.strip() for cid in _require_env('CHANNEL_IDS').split(',') if cid.strip()]
+target_channel_name = _require_env('CHANNEL_NAME')
+your_account = _require_env('ACCOUNT')  # NTU COOL 帳號
+your_password = _require_env('PASSWORD')  # NTU COOL 密碼
+your_web_url = _require_env('URL')  # 租借系統網址
+token = _require_env('TOKEN')
+maintainer_id_env = _require_env('MAINTAINER_ID')
+bot_name_env = _require_env('BOT_NAME')
+line_id_env = os.getenv('LINE_ID')  # 選填：欠款提醒與 /help 顯示的 Line ID
+
+# 自我介紹文案（mention 回覆與 welcome 指令共用）
+WELCOME_TEXT = f"""我是{bot_name_env}，很高興認識你 ▼・ᴥ・▼
+
+我將提供 **台大游泳池票** 以及** 台大健身中心票** 給你喔~
+
+在 **{target_channel_name}** 頻道中 (っ・Д・)っ
+
+你可以發送 **`/給我游泳池票`** 以索取台大游泳池 QR Code (=^-ω-^=)
+
+或是發送 **`/給我健身中心票`** 以索取台大健身中心 QR Code ฅ^•ﻌ•^ฅ
+
+小小的提醒~~請在給泳驗刷票前就把 QR Code 生成好喔，不然泳驗可能會覺得很奇怪(◉３◉)
+
+也可以發送 **`/help`** 來得到更多資訊喔 (´･ω･`)
+
+運動真的很開心呢，希望能跟大家一起開心游泳和健身 (^_っ^)"""
 
 class WebDriverManager:
     def __init__(self, options):
@@ -125,24 +149,7 @@ async def on_message(message):
 
     # 检测消息是否提及了机器人
     if bot.user in message.mentions:
-        await message.channel.send(
-            f"""{message.author.mention} 你好！我是{bot_name_env}，很高興認識你 ▼・ᴥ・▼
-
-我將提供 **台大游泳池票** 以及** 台大健身中心票** 給你喔~
-
-在 **{target_channel_name}** 頻道中 (っ・Д・)っ
-
-你可以發送 **`/給我游泳池票`** 以索取台大游泳池 QR Code (=^-ω-^=)
-
-或是發送 **`/給我健身中心票`** 以索取台大健身中心 QR Code ฅ^•ﻌ•^ฅ
-
-請在給泳驗刷票前就把 QR Code 生成好喔，不然泳驗可能會覺得很奇怪(◉３◉)
-
-也可以發送 **`/help`** 來得到更多資訊喔 (´･ω･`)
-
-運動真的很開心呢，希望能跟大家一起開心游泳和健身 (^_っ^)
-            """
-        )
+        await message.channel.send(f"{message.author.mention} 你好！{WELCOME_TEXT}")
 
     # 2. 檢查訊息作者是否為特定使用者
     if int(message.author.id) == int(maintainer_id_env):
@@ -155,25 +162,9 @@ async def on_message(message):
             for channel_id in target_channel_ids:
                 channel = bot.get_channel(int(channel_id))
                 if channel :
-                    await channel.send(f"""我是{bot_name_env}，很高興認識你 ▼・ᴥ・▼
-
-我將提供 **台大游泳池票** 以及** 台大健身中心票** 給你喔~
-
-在 **{target_channel_name}** 頻道中 (っ・Д・)っ
-
-你可以發送 **`/給我游泳池票`** 以索取台大游泳池 QR Code (=^-ω-^=)
-
-或是發送 **`/給我健身中心票`** 以索取台大健身中心 QR Code ฅ^•ﻌ•^ฅ
-
-小小的提醒~~請在給泳驗刷票前就把 QR Code 生成好喔，不然泳驗可能會覺得很奇怪(◉３◉)
-
-也可以發送 **`/help`** 來得到更多資訊喔 (´･ω･`)
-
-運動真的很開心呢，希望能跟大家一起開心游泳和健身 (^_っ^)
-            """
-        )
+                    await channel.send(WELCOME_TEXT)
                 else:
-                    print(f'無法找到頻道 {channel_id}') 
+                    print(f'無法找到頻道 {channel_id}')
 
 # 3. 檢查訊息內容是否與特定觸發訊息相符 (不區分大小寫)
         # 使用 .strip().lower() 處理前後空白和大小寫
@@ -267,11 +258,23 @@ async def on_message(message):
                 if not unpaid:
                     await message.reply("✅ 最近 14 天沒有待催繳紀錄")
                 else:
-                    lines = "\n".join(
+                    lines = [
                         f"• `{ts.astimezone().strftime('%m/%d')}` {content}"
                         for ts, content in unpaid
-                    )
-                    await message.reply(f"💸 **待催繳（最近 14 天，共 {len(unpaid)} 筆）：**\n{lines}")
+                    ]
+                    # Discord 單則訊息上限 2000 字，超過就分段；每段都帶「待催繳」
+                    # 字樣，讓上面掃 DM 的條件能排除 bot 自己的回覆
+                    chunks = []
+                    current = f"💸 **待催繳（最近 14 天，共 {len(unpaid)} 筆）：**"
+                    for line in lines:
+                        if len(current) + len(line) + 1 > 1900:
+                            chunks.append(current)
+                            current = f"💸 **待催繳（續）：**\n{line}"
+                        else:
+                            current += f"\n{line}"
+                    chunks.append(current)
+                    for chunk in chunks:
+                        await message.reply(chunk)
 
     # 处理其他命令
     await bot.process_commands(message)
@@ -414,7 +417,7 @@ async def ticket(interaction: discord.Interaction):
 
 請幫我在轉帳備註欄填上 **姓名** 或是 **Discord 暱稱** 喔
 
-Line pay 帳號 ID： **ttt50966**
+{f"Line pay 帳號 ID： **{line_id_env}**" if line_id_env else ""}
 
 街口支付可以儲存下面的付款碼，再使用 APP 付款
 
