@@ -1,6 +1,7 @@
 import discord
 import asyncio
 from src.utility import login, logout, getImage, get_ticket_num, check_ticket_num, BrowserCriticalError
+from src.ticket_records import add_record
 import os
 
 async def get_ticket(bot, interaction: discord.Interaction, category, driver_manager, your_web_url, your_account, your_password, target_channel_ids, target_channel_name, maintainer_id_env):
@@ -62,12 +63,14 @@ async def get_ticket(bot, interaction: discord.Interaction, category, driver_man
         if ticket_num < 2:
             await interaction.edit_original_response(content=f"{category} 票卷不足，請等加值後再試><")
             channel = bot.get_channel(int(interaction.channel_id))
-            if channel: await channel.send(f"{category} 票卷不足，請加值><（剩餘 {ticket_num} 張）")
+            if channel:
+                await channel.send(f"{category} 票卷不足，請加值><（剩餘 {ticket_num} 張）")
         else:
             if ticket_num < 6:
                 # 頻道廣播訊息依然用 channel.send
                 channel = bot.get_channel(int(interaction.channel_id))
-                if channel: await channel.send(f"{category} 票卷即將不足，請加值><（剩餘 {ticket_num} 張）")
+                if channel:
+                    await channel.send(f"{category} 票卷即將不足，請加值><（剩餘 {ticket_num} 張）")
 
             base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             image_path = os.path.join(base_dir, 'img', 'screenshot_crop.png')
@@ -97,7 +100,11 @@ async def get_ticket(bot, interaction: discord.Interaction, category, driver_man
 
                 if user:
                     try:
-                        await user.send(f"{sender_name} 成功使用 {category} QR Code，剩餘 {ticket_num} 張")
+                        sent = await user.send(f"{sender_name} 成功使用 {category} QR Code，剩餘 {ticket_num} 張")
+                        try:
+                            add_record(interaction.user.id, sender_name, category, sent.id)
+                        except Exception as e:
+                            print(f"寫入票券紀錄失敗: {e}")
                     except Exception as e:
                         print(f"私訊失敗: {e}")
 
@@ -154,8 +161,10 @@ async def get_ticket(bot, interaction: discord.Interaction, category, driver_man
             async def delayed_delete(msgs):
                 await asyncio.sleep(60)
                 for m in msgs:
-                    try: await m.delete()
-                    except: pass
+                    try:
+                        await m.delete()
+                    except Exception:
+                        pass
 
             if finish_messages_dict:
                 asyncio.create_task(delayed_delete(finish_messages_dict.values()))
