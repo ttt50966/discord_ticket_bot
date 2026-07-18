@@ -14,6 +14,7 @@ from src.unpaid_list import is_unpaid, add_unpaid, remove_unpaid, list_unpaid
 from src.ticket_records import load_records, mark_reminded
 from dotenv import load_dotenv
 
+import re
 import time
 import asyncio
 import datetime
@@ -492,7 +493,9 @@ async def on_message(message):
                         continue
                     if msg.id in known_ids:
                         continue
-                    if "成功使用" not in msg.content or "待催繳" in msg.content:
+                    # 票卷通知是固定格式的單行訊息；bot 自己的 check/remind 回覆是多行，
+                    # fullmatch（. 不跨行）天然排除，不再依賴「待催繳」字樣標記
+                    if not re.fullmatch(r".+ 成功使用 .+ QR Code，剩餘 \d+ 張", msg.content):
                         continue
                     paid = any(str(rx.emoji) == "👍" for rx in msg.reactions)
                     unused = any(str(rx.emoji) == "❤️" for rx in msg.reactions)
