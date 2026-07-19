@@ -148,16 +148,42 @@ Display all users currently on the unpaid list.
    unpaid check
 ```
 
-Scan the bot's DM history from the last 14 days and list all ticket usage records that have **no reaction**.
+List all unpaid ticket records, grouped by age:
+- **⏰ Within 14 days** — will be covered by `unpaid remind`
+- **⚠️ 14–30 days** — shown for manual follow-up
+- **🚫 Over 30 days** — a ready-to-copy `unpaid add <user_id>` command is attached, suggesting a blacklist
+
+Records are read from `data/ticket_records.json` (written automatically on every successful ticket use since this feature landed) and cross-checked against the reactions on the bot's DM notifications. Old-format DMs (before the record file existed) are still scanned as a fallback and listed separately.
 
 **Reaction convention:**
 - 👍 — payment received (skip)
 - ❤️ — ticket unused / no charge needed (skip)
 - *(no reaction)* — pending payment, will appear in the result
 
+9.
+```sh
+   unpaid remind dryrun
+```
+
+Preview who would receive a payment reminder DM and the exact message content, **without sending anything**. Always run this first.
+
+10.
+```sh
+   unpaid remind
+```
+
+Send a payment reminder DM (itemized records, total amount, payment info and the JKO Pay QR code) to every user with unpaid records within the last 14 days. Users on the blacklist, or already reminded within the last 3 days, are skipped automatically. A summary (sent / skipped / failed) is replied to the maintainer — users whose DMs are closed appear in the failed list and need manual contact.
+
+11.
+```sh
+   help
+```
+
+**(DM only)** Show the maintainer command cheat sheet — all the commands above plus the reaction convention. This is separate from the public `/help` slash command used in the channel.
+
 ---
 
-> **Fork Note:** The entire `unpaid` command series (`add`, `remove`, `list`, `check`) was added in this fork and co-authored with [Claude](https://claude.ai) (Anthropic).
+> **Fork Note:** The entire `unpaid` command series (`add`, `remove`, `list`, `check`, `remind`) and the structured ticket record system (`data/ticket_records.json`) were added in this fork and co-authored with [Claude](https://claude.ai) (Anthropic).
 
 <!-- CONTACT -->
 ## Contact

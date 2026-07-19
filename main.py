@@ -71,6 +71,27 @@ WELCOME_TEXT = f"""我是{bot_name_env}，很高興認識你 ▼・ᴥ・▼
 
 運動真的很開心呢，希望能跟大家一起開心游泳和健身 (^_っ^)"""
 
+# maintainer 在 DM 打 help 時顯示的管理指令總覽（與頻道版 /help 區隔）
+ADMIN_HELP_TEXT = """🛠 **管理指令總覽**（僅 maintainer 可用）
+
+**頻道公告**
+• `welcome` — 發送自我介紹到頻道
+• `swim` ／ `gym` — 宣告游泳池／健身中心票已補足
+• `fixed` — 宣告 bot 修復完成
+
+**欠款管理（unpaid 系列）**
+• `unpaid add <user_id>` — 加入黑名單（擋新票）
+• `unpaid remove <user_id>` — 移出黑名單
+• `unpaid list` — 查看黑名單
+• `unpaid check` — 欠款總覽：14 天內／14–30 天／逾 30 天（附 ban 建議指令）
+• `unpaid remind dryrun` — 預覽催繳名單與文案（不發送）
+• `unpaid remind` — DM 催繳 14 天內未付者（自動跳過黑名單與 3 天內已催過者）
+
+**銷帳方式**
+在 bot 私訊你的「成功使用」通知上按 reaction：
+👍 ＝ 已收款　❤️ ＝ 未使用票卷（免收）
+沒按 reaction 的紀錄會被視為待催繳"""
+
 
 # ---------- 欠款催繳輔助函式 ----------
 
@@ -404,6 +425,10 @@ async def on_message(message):
         )
                 else:
                     print(f'無法找到頻道 {channel_id}')
+
+        # DM 限定：管理指令總覽（頻道的 /help 是給一般使用者的，這裡是 maintainer 專用版）
+        if message.content.strip().lower() == "help" and isinstance(message.channel, discord.DMChannel):
+            await message.reply(ADMIN_HELP_TEXT)
 
         # unpaid 欠款名單管理指令
         parts = message.content.strip().split()
