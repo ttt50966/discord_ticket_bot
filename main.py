@@ -52,6 +52,9 @@ your_web_url = _require_env('URL')  # 租借系統網址
 token = _require_env('TOKEN')
 maintainer_id_env = _require_env('MAINTAINER_ID')
 bot_name_env = _require_env('BOT_NAME')
+contact_name_env = _require_env('CONTACT_NAME')  # 文案裡的聯絡人稱呼（如「意涵」）
+# 選填：正式全名（如「耿意涵」），只用在 /help 結尾，沒設定就沿用 CONTACT_NAME
+contact_full_name_env = (os.getenv('CONTACT_FULL_NAME') or '').strip() or contact_name_env
 line_id_env = os.getenv('LINE_ID')  # 選填：欠款提醒與 /help 顯示的 Line ID
 post_account_env = os.getenv('POST_ACCOUNT')  # 選填：中華郵政轉帳帳號（含局號）
 cathay_account_env = os.getenv('CATHAY_ACCOUNT')  # 選填：國泰世華轉帳帳號（含分行代碼）
@@ -242,9 +245,9 @@ def _build_reminder_text(display_name, records):
 
 轉帳的話請幫我在備註欄填上 **姓名** 或 **Discord 暱稱** 喔~
 
-付款完成後,麻煩私訊 **冠嘉** 說一聲,確認後就會幫你銷帳囉 ><
+付款完成後,麻煩私訊 **{contact_name_env}** 說一聲,確認後就會幫你銷帳囉 ><
 
-如果你其實已經付過款了,或是覺得這筆紀錄怪怪的,也直接跟冠嘉說,馬上幫你查 (=^-ω-^=)"""
+如果你其實已經付過款了,或是覺得這筆紀錄怪怪的,也直接跟{contact_name_env}說,馬上幫你查 (=^-ω-^=)"""
 
 
 async def _handle_unpaid_remind(message, dryrun: bool):
@@ -608,7 +611,7 @@ if GYM_ENABLED:
 async def handle_ticket_request(interaction: discord.Interaction, category: str):
     # 檢查是否在欠款名單內
     if is_unpaid(interaction.user.id):
-        contact_msg = "• Discord：私訊 **冠嘉**\n"
+        contact_msg = f"• Discord：私訊 **{contact_name_env}**\n"
         if line_id_env:
             contact_msg += f"• Line：**{line_id_env}**\n"
         await interaction.followup.send(
@@ -726,7 +729,7 @@ async def ticket(interaction: discord.Interaction):
 
 街口支付可以儲存下面的付款碼，再使用 APP 付款
 
-如果有其他問題，歡迎私訊 **邱冠嘉** (´･ω･`)
+如果有其他問題，歡迎私訊 **{contact_full_name_env}** (´･ω･`)
             """,
             file=qrcode,
             ephemeral=True
