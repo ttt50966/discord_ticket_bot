@@ -14,7 +14,7 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from src.get_ticket import get_ticket
-from src.ticket_records import load_records, mark_reminded
+from src.ticket_records import TICKET_PRICES, load_records, mark_reminded
 from src.unpaid_list import add_unpaid, is_unpaid, list_unpaid, remove_unpaid
 from src.utility import BrowserCriticalError, get_ticket_num, login, logout
 
@@ -56,6 +56,10 @@ line_id_env = os.getenv('LINE_ID')  # 選填：欠款提醒與 /help 顯示的 L
 post_account_env = os.getenv('POST_ACCOUNT')  # 選填：中華郵政轉帳帳號（含局號）
 cathay_account_env = os.getenv('CATHAY_ACCOUNT')  # 選填：國泰世華轉帳帳號（含分行代碼）
 
+# 暫停開關：借用朋友帳號期間先關掉健身中心票與剩餘票數查詢，等原帳號恢復後改回 True
+GYM_ENABLED = False
+REMAINING_TICKETS_ENABLED = False
+
 
 # 銀行名的常見寫法，長的排前面（清洗時依序 replace，短的先中會留下殘字）
 _BANK_ALIASES = {
@@ -84,18 +88,22 @@ def _transfer_accounts():
     return accounts
 
 
+# 健身中心相關文案：GYM_ENABLED 關掉時整段不出現
+_welcome_offer = "**台大游泳池票** 以及** 台大健身中心票**" if GYM_ENABLED else "**台大游泳池票**"
+_welcome_gym_line = "或是發送 **`/給我健身中心票`** 以索取台大健身中心 QR Code ฅ^•ﻌ•^ฅ\n\n" if GYM_ENABLED else ""
+_help_gym_line = "**發送 `/給我健身中心票`** 以索取台大健身中心 QR Code\n\n" if GYM_ENABLED else ""
+_help_gym_price = f"健身中心票卷費用：**{TICKET_PRICES['健身中心']} 元**\n\n" if GYM_ENABLED else ""
+
 # 自我介紹文案（mention 回覆與 welcome 指令共用）
 WELCOME_TEXT = f"""我是{bot_name_env}，很高興認識你 ▼・ᴥ・▼
 
-我將提供 **台大游泳池票** 以及** 台大健身中心票** 給你喔~
+我將提供 {_welcome_offer} 給你喔~
 
 在 **{target_channel_name}** 頻道中 (っ・Д・)っ
 
 你可以發送 **`/給我游泳池票`** 以索取台大游泳池 QR Code (=^-ω-^=)
 
-或是發送 **`/給我健身中心票`** 以索取台大健身中心 QR Code ฅ^•ﻌ•^ฅ
-
-小小的提醒~~請在給泳驗刷票前就把 QR Code 生成好喔，不然泳驗可能會覺得很奇怪(◉３◉)
+{_welcome_gym_line}小小的提醒~~請在給泳驗刷票前就把 QR Code 生成好喔，不然泳驗可能會覺得很奇怪(◉３◉)
 
 也可以發送 **`/help`** 來得到更多資訊喔 (´･ω･`)
 
@@ -586,13 +594,14 @@ async def swimming_ticket(interaction: discord.Interaction):
     )
 
 # 修改健身中心指令
-@bot.tree.command(name="給我健身中心票", description="索取台大健身中心票卷 QR Code ><")
-async def gym_ticket(interaction: discord.Interaction):
-    await interaction.response.defer(ephemeral=True)
-    
-    asyncio.create_task(
-        handle_ticket_request(interaction, "健身中心")
-    )
+if GYM_ENABLED:
+    @bot.tree.command(name="給我健身中心票", description="索取台大健身中心票卷 QR Code ><")
+    async def gym_ticket(interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+
+        asyncio.create_task(
+            handle_ticket_request(interaction, "健身中心")
+        )
 
 # 定义一个 Slash 命令
 # 建立一個統一的處理函式
@@ -623,10 +632,11 @@ async def handle_ticket_request(interaction: discord.Interaction, category: str)
     
     
 
-@bot.tree.command(name="剩餘票數", description="查詢游泳池及健身中心剩餘票卷張數")
-async def remaining_tickets(interaction: discord.Interaction):
-    await interaction.response.defer(ephemeral=True)
-    asyncio.create_task(handle_remaining_check(interaction))
+if REMAINING_TICKETS_ENABLED:
+    @bot.tree.command(name="剩餘票數", description="查詢游泳池及健身中心剩餘票卷張數")
+    async def remaining_tickets(interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        asyncio.create_task(handle_remaining_check(interaction))
 
 async def handle_remaining_check(interaction: discord.Interaction):
     if str(interaction.channel_id) not in target_channel_ids:
@@ -700,17 +710,13 @@ async def ticket(interaction: discord.Interaction):
 
 **發送 `/給我游泳池票`** 以索取台大游泳池 QR Code
 
-**發送 `/給我健身中心票`** 以索取台大健身中心 QR Code
-
-**QR Code** 請在三分鐘之內使用
+{_help_gym_line}**QR Code** 請在三分鐘之內使用
 
 請在給泳驗刷票前就把 QR Code 生成好喔，不然泳驗可能會覺得很奇怪(◉３◉)
 
-台大游泳池票卷費用：**50 元**
+台大游泳池票卷費用：**{TICKET_PRICES['游泳池']} 元**
 
-健身中心票卷費用：**40  元**
-
-在使用 QR Code 成功後，可以用 **轉帳** 、 **Line Pay** 或是 **街口支付** 
+{_help_gym_price}在使用 QR Code 成功後，可以用 **轉帳** 、 **Line Pay** 或是 **街口支付** 
 
 {transfer_info}
 
