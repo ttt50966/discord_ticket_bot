@@ -1,18 +1,21 @@
 
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import NoSuchElementException, TimeoutException, UnexpectedAlertPresentException, WebDriverException
-import time
-import re
-import os
-from PIL import Image
-import logging
-from datetime import datetime
 import asyncio
+import logging
+import os
+import re
+import time
+from datetime import datetime
 
-
-
+from PIL import Image
+from selenium.common.exceptions import (
+    NoSuchElementException,
+    TimeoutException,
+    UnexpectedAlertPresentException,
+    WebDriverException,
+)
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
 
 # 獲取當前 Python 檔案的路徑
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -37,7 +40,44 @@ logging.basicConfig(filename=error_path, level=logging.ERROR,
 
 class BrowserCriticalError(Exception):
     """當 WebDriver 完全無法通訊或環境損壞時拋出"""
-    pass
+
+
+class LoginRejected(Exception):
+    """ADFS 明確回報帳密錯誤／帳號停用，重試沒有意義"""
+
+
+# ADFS 登入失敗頁的錯誤字樣（中英文介面都可能出現）
+_ADFS_ERROR_HINTS = (
+    "識別碼或密碼不正確",
+    "密碼不正確",
+    "帳號或密碼錯誤",
+    "您的帳戶已被鎖定",
+    "Incorrect user ID or password",
+    "The user name or password is incorrect",
+    "Your account is locked",
+)
+
+
+def _adfs_error_text(driver):
+    """若停在 ADFS 且頁面出現錯誤訊息，回傳該訊息；否則回傳 None"""
+    if "adfs.ntu.edu.tw" not in (driver.current_url or ""):
+        return None
+    for selector in ("#errorText", "#error", ".error", "#errorMessage"):
+        try:
+            for el in driver.find_elements(By.CSS_SELECTOR, selector):
+                text = (el.text or "").strip()
+                if text:
+                    return text
+        except WebDriverException:
+            continue
+    try:
+        body = driver.find_element(By.TAG_NAME, "body").text or ""
+    except WebDriverException:
+        return None
+    for hint in _ADFS_ERROR_HINTS:
+        if hint in body:
+            return hint
+    return None
 
 
 
@@ -95,21 +135,32 @@ def _login_once(driver, url, account, password):
         stage = "驗證登入結果回傳"
 
         def check_login_success(d):
-            url = d.current_url
-            if url is None:
+            """只認「已離開 ADFS 且落在租借系統會員頁」。
+
+            起始 URL（sso2_go.php?BUrl=…）與 ADFS 頁的回傳參數本身就含
+            rent.pe.ntu.edu.tw，只比對 hostname 會讓停在 ADFS 錯誤頁也回報成功。
+            """
+            url = d.current_url or ""
+            if not url:
                 return False
-            return "rent.pe.ntu.edu.tw" in url or "member" in url
+            if "adfs.ntu.edu.tw" not in url and "sso2_go.php" not in url and "member" in url.lower():
+                return True
+            err = _adfs_error_text(d)
+            if err:
+                raise LoginRejected(err)
+            return False
 
         wait.until(check_login_success)
 
-        if "member" in (driver.current_url or ""):
-            print("DEBUG: 已確認跳轉至會員頁面", flush=True)
-
-        print(f"✅ [{datetime.now()}] 登入成功", flush=True)
+        print(f"✅ [{datetime.now()}] 登入成功（已跳轉至會員頁面）", flush=True)
         return True
 
+    except LoginRejected as e:
+        handle_error_diagnostics(driver, f"⛔ 登入被拒（帳密錯誤或帳號停用），不再重試: {e!s}")
+        raise
+
     except Exception as e:
-        handle_error_diagnostics(driver, f"❌ 登入失敗於 [{stage}]: {str(e)}")
+        handle_error_diagnostics(driver, f"❌ 登入失敗於 [{stage}]: {e!s}")
         return False
 
 
@@ -117,7 +168,13 @@ async def login(driver, url, account, password, max_retries=3, retry_delay=5):
     """帶自動重試的登入函數，適合網路不穩的環境（例如樹莓派 WiFi）。"""
     for attempt in range(1, max_retries + 1):
         print(f"🔄 登入嘗試 {attempt}/{max_retries}...", flush=True)
-        if await asyncio.to_thread(_login_once, driver, url, account, password):
+        try:
+            ok = await asyncio.to_thread(_login_once, driver, url, account, password)
+        except LoginRejected as e:
+            # 帳密錯誤／帳號停用，重試只是浪費 driver 時間，直接放棄
+            print(f"⛔ 登入被拒，放棄重試：{e}", flush=True)
+            return False
+        if ok:
             return True
         if attempt < max_retries:
             print(f"⏳ 登入失敗，{retry_delay} 秒後重試...", flush=True)
@@ -242,7 +299,7 @@ def _get_image_sync(driver, category):
         driver.save_screenshot(os.path.join(parent_dir, 'log', 'debug_getimage_timeout.png'))
         raise Exception(f"無法在頁面上定位到 {category} 的 QR Code 按鈕")
     except Exception as e:
-        print(f"❌ getImage 發生未知錯誤: {str(e)}", flush=True)
+        print(f"❌ getImage 發生未知錯誤: {e!s}", flush=True)
         raise e
 
 

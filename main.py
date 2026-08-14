@@ -1,23 +1,23 @@
 # 導入Discord.py模組
+import asyncio
+import datetime
+import os
+import re
+import time
+
 import discord
+
 # 導入commands指令模組
 from discord.ext import commands
-import os
-
+from dotenv import load_dotenv
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
-
 from src.get_ticket import get_ticket
-from src.utility import BrowserCriticalError, login, logout, get_ticket_num
-from src.unpaid_list import is_unpaid, add_unpaid, remove_unpaid, list_unpaid
 from src.ticket_records import load_records, mark_reminded
-from dotenv import load_dotenv
+from src.unpaid_list import add_unpaid, is_unpaid, list_unpaid, remove_unpaid
+from src.utility import BrowserCriticalError, get_ticket_num, login, logout
 
-import re
-import time
-import asyncio
-import datetime
 
 # 1. 建立 Bot 類別來處理同步 (這樣最穩)
 class MyBot(commands.Bot):
@@ -53,6 +53,36 @@ token = _require_env('TOKEN')
 maintainer_id_env = _require_env('MAINTAINER_ID')
 bot_name_env = _require_env('BOT_NAME')
 line_id_env = os.getenv('LINE_ID')  # 選填：欠款提醒與 /help 顯示的 Line ID
+post_account_env = os.getenv('POST_ACCOUNT')  # 選填：中華郵政轉帳帳號（含局號）
+cathay_account_env = os.getenv('CATHAY_ACCOUNT')  # 選填：國泰世華轉帳帳號（含分行代碼）
+
+
+# 銀行名的常見寫法，長的排前面（清洗時依序 replace，短的先中會留下殘字）
+_BANK_ALIASES = {
+    "中華郵政": ("中華郵政", "郵政", "郵局"),
+    "國泰世華": ("國泰世華銀行", "國泰世華", "國泰"),
+}
+
+
+def _clean_account(bank, raw):
+    """去掉值裡重複打的銀行名，避免顯示成「中華郵政：(700) 中華郵政 0081…」"""
+    text = raw.strip()
+    for alias in _BANK_ALIASES.get(bank, ()):
+        text = text.replace(alias, "")
+    return " ".join(text.split())
+
+
+def _transfer_accounts():
+    """已設定的轉帳帳號，回傳 [(銀行, 帳號), ...]；沒設定的就不會出現在文案裡"""
+    accounts = []
+    for bank, raw in (("中華郵政", post_account_env), ("國泰世華", cathay_account_env)):
+        if not raw or not raw.strip():
+            continue
+        acc = _clean_account(bank, raw)
+        if acc:
+            accounts.append((bank, acc))
+    return accounts
+
 
 # 自我介紹文案（mention 回覆與 welcome 指令共用）
 WELCOME_TEXT = f"""我是{bot_name_env}，很高興認識你 ▼・ᴥ・▼
@@ -188,6 +218,7 @@ def _build_reminder_text(display_name, records):
         total += r.get("amount", 0)
     detail = "\n".join(lines)
     line_pay_line = f"• Line Pay:**{line_id_env}**\n" if line_id_env else ""
+    transfer_lines = "".join(f"• 轉帳（{bank}）:**{acc}**\n" for bank, acc in _transfer_accounts())
 
     return f"""哈囉 {display_name}～我是{bot_name_env} ▼・ᴥ・▼
 
@@ -199,8 +230,7 @@ def _build_reminder_text(display_name, records):
 💰 **合計:{total} 元**
 
 付款方式任選一種:
-• 轉帳:**(700) 中華郵政 00814531372557**
-{line_pay_line}• 街口支付:掃下面的付款碼
+{transfer_lines}{line_pay_line}• 街口支付:掃下面的付款碼
 
 轉帳的話請幫我在備註欄填上 **姓名** 或 **Discord 暱稱** 喔~
 
@@ -660,7 +690,10 @@ async def ticket(interaction: discord.Interaction):
 
         #如果沒有付款碼，請把下面程式碼的註解消除，並註解掉上一行
         qrcode = discord.File(qrcode_path, filename="empty.png")
-        
+
+        accounts = _transfer_accounts()
+        transfer_info = "轉帳資料：\n" + "\n".join(f"{bank}：**{acc}**" for bank, acc in accounts) if accounts else ""
+
         # 發送消息並附加文件
         await interaction.followup.send(
             f"""請在 **{target_channel_name}** 頻道中
@@ -679,7 +712,7 @@ async def ticket(interaction: discord.Interaction):
 
 在使用 QR Code 成功後，可以用 **轉帳** 、 **Line Pay** 或是 **街口支付** 
 
-轉帳資料：**(700) 中華郵政 00814531372557**
+{transfer_info}
 
 請幫我在轉帳備註欄填上 **姓名** 或是 **Discord 暱稱** 喔
 
