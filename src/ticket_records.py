@@ -5,7 +5,7 @@ import os
 _DATA_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'ticket_records.json')
 
 # 票券金額單一來源
-TICKET_PRICES = {"游泳池": 30, "健身中心": 40}
+TICKET_PRICES = {"游泳池": 50, "健身中心": 40}
 
 
 def _load() -> list:

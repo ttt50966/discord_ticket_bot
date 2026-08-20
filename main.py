@@ -60,8 +60,8 @@ post_account_env = os.getenv('POST_ACCOUNT')  # 選填：中華郵政轉帳帳�
 cathay_account_env = os.getenv('CATHAY_ACCOUNT')  # 選填：國泰世華轉帳帳號（含分行代碼）
 
 # 暫停開關：借用朋友帳號期間先關掉健身中心票與剩餘票數查詢，等原帳號恢復後改回 True
-GYM_ENABLED = False
-REMAINING_TICKETS_ENABLED = False
+GYM_ENABLED = True
+REMAINING_TICKETS_ENABLED = True
 
 
 # 銀行名的常見寫法，長的排前面（清洗時依序 replace，短的先中會留下殘字）
