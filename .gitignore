@@ -177,5 +177,5 @@ img/payment_qrcode.png
 # claude
 .claude/
 
-# unpaid list (runtime data, not tracked)
-data/unpaid_users.json
+# 執行期資料（刷票紀錄、欠款名單、截圖），不進 git
+data/
