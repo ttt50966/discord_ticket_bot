@@ -131,6 +131,19 @@ def _login_once(driver, url, account, password):
         login_btn = driver.find_element(By.NAME, "ctl00$ContentPlaceHolder1$SubmitButton")
         driver.execute_script("arguments[0].click();", login_btn)
 
+        # 4.5 新版 SSO/ADFS 成功後會跳 JS alert（例如「帳號認證完成。」）。
+        # unhandledPromptBehavior=accept 在新版 chromedriver 仍會對「當下正在執行的
+        # 指令」丟 UnexpectedAlertPresentException，所以這裡顯式等待並接受一次。
+        stage = "接受登入確認彈窗"
+        try:
+            WebDriverWait(driver, 15, poll_frequency=0.3).until(EC.alert_is_present())
+            _a = driver.switch_to.alert
+            _txt = _a.text
+            _a.accept()
+            print(f"ℹ️ 已接受登入彈窗：{_txt}", flush=True)
+        except TimeoutException:
+            pass
+
         # 5. 驗證回傳
         stage = "驗證登入結果回傳"
 
@@ -140,7 +153,14 @@ def _login_once(driver, url, account, password):
             起始 URL（sso2_go.php?BUrl=…）與 ADFS 頁的回傳參數本身就含
             rent.pe.ntu.edu.tw，只比對 hostname 會讓停在 ADFS 錯誤頁也回報成功。
             """
-            url = d.current_url or ""
+            try:
+                url = d.current_url or ""
+            except UnexpectedAlertPresentException:
+                try:
+                    d.switch_to.alert.accept()
+                except Exception:
+                    pass
+                return False
             if not url:
                 return False
             if "adfs.ntu.edu.tw" not in url and "sso2_go.php" not in url and "member" in url.lower():
