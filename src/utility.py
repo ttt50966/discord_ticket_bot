@@ -136,7 +136,7 @@ def _login_once(driver, url, account, password):
         # 指令」丟 UnexpectedAlertPresentException，所以這裡顯式等待並接受一次。
         stage = "接受登入確認彈窗"
         try:
-            WebDriverWait(driver, 15, poll_frequency=0.3).until(EC.alert_is_present())
+            WebDriverWait(driver, 8, poll_frequency=0.3).until(EC.alert_is_present())
             _a = driver.switch_to.alert
             _txt = _a.text
             _a.accept()
