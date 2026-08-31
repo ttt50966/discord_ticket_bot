@@ -1,8 +1,19 @@
-import discord
 import asyncio
-from src.utility import login, logout, getImage, get_ticket_num, check_ticket_num, BrowserCriticalError
-from src.ticket_records import add_record
 import os
+from datetime import date, datetime, timezone
+
+import discord
+
+from src.ticket_records import add_record
+from src.utility import (
+    BrowserCriticalError,
+    check_ticket_num,
+    get_ticket_num,
+    getImage,
+    login,
+    logout,
+)
+
 
 async def get_ticket(bot, interaction: discord.Interaction, category, driver_manager, your_web_url, your_account, your_password, target_channel_ids, target_channel_name, maintainer_id_env):
 
@@ -81,6 +92,17 @@ async def get_ticket(bot, interaction: discord.Interaction, category, driver_man
 
             # 更新原本的延遲訊息 (edit_original_response)
             await interaction.edit_original_response(content=f"已傳送 {category} QR Code，請在三分鐘之內使用喔", attachments=[picture])
+
+            # 救生班期間（2026-08-31 ~ 2026-09-21）泳池票額外提醒
+            today = datetime.now(timezone.utc).astimezone().date()
+            if category == "游泳池" and date(2026, 8, 31) <= today <= date(2026, 9, 21):
+                try:
+                    await interaction.followup.send(
+                        "你是來救生班幫忙的嗎，不需要另外使用 QR code，簽名即可喔！\n放心，這張票不會使用到",
+                        ephemeral=True,
+                    )
+                except discord.HTTPException as e:
+                    print(f"救生班提醒訊息傳送失敗: {e}")
 
             success = await check_ticket_num(driver, ticket_num, category)
             if success is None:
