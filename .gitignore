@@ -179,3 +179,4 @@ img/payment_qrcode.png
 
 # 執行期資料（刷票紀錄、欠款名單、截圖），不進 git
 data/
+img/history/
