@@ -269,6 +269,66 @@ def crop_center(image_path, output_path, crop_width, crop_height):
     # 保存裁剪後的圖像
     cropped_img.save(output_path)
 
+# 彈窗淡入期間截圖會拍到半透明、灰糊的 QR（2026-10-16 實證），截圖前要等淡入完成
+_OPACITY_CHAIN_JS = """
+let e = arguments[0], o = 1;
+while (e && e.nodeType === 1) { o *= parseFloat(getComputedStyle(e).opacity); e = e.parentElement; }
+return o;
+"""
+
+_FRAME_READY_JS = """
+if (document.readyState !== 'complete') return false;
+const imgs = [...document.images];
+if (imgs.some(i => !i.complete || i.naturalWidth === 0)) return false;
+for (const el of [...imgs, ...document.querySelectorAll('canvas, svg')]) {
+  let e = el, o = 1;
+  while (e && e.nodeType === 1) { o *= parseFloat(getComputedStyle(e).opacity); e = e.parentElement; }
+  if (o < 0.999) return false;
+}
+return true;
+"""
+
+HISTORY_KEEP = 100
+
+
+def _wait_opaque(driver, element, timeout=5):
+    """等 element 與所有祖先的 opacity 乘積連續兩次 ≥0.999。逾時只警告、照樣截圖。"""
+    end = time.time() + timeout
+    prev = None
+    while time.time() < end:
+        o = driver.execute_script(_OPACITY_CHAIN_JS, element)
+        if o >= 0.999 and prev is not None and prev >= 0.999:
+            return True
+        prev = o
+        time.sleep(0.15)
+    print(f"⚠️ 彈窗 {timeout}s 內未完全不透明（opacity={prev}），照樣截圖", flush=True)
+    return False
+
+
+def _wait_frame_ready(driver, timeout=5):
+    """在已切入的 iframe 內等文件載完、圖片解碼完、QR 本身不透明。"""
+    try:
+        WebDriverWait(driver, timeout, poll_frequency=0.15).until(
+            lambda d: d.execute_script(_FRAME_READY_JS)
+        )
+        return True
+    except TimeoutException:
+        print(f"⚠️ iframe 內 QR {timeout}s 內未載完，照樣截圖", flush=True)
+        return False
+
+
+def _save_history(image_path_crop, img_dir, category):
+    """留存帶時間戳的截圖，只保留最近 HISTORY_KEEP 張。"""
+    hist_dir = os.path.join(img_dir, 'history')
+    os.makedirs(hist_dir, exist_ok=True)
+    name = f"{datetime.now():%Y%m%d-%H%M%S}_{category}.png"
+    Image.open(image_path_crop).save(os.path.join(hist_dir, name))
+    files = sorted(f for f in os.listdir(hist_dir) if f.endswith('.png'))
+    for old in files[:-HISTORY_KEEP]:
+        os.remove(os.path.join(hist_dir, old))
+    return name
+
+
 def _get_image_sync(driver, category):
     # 建立等待工具，最多等 15 秒
     wait = WebDriverWait(driver, 15)
@@ -291,8 +351,13 @@ def _get_image_sync(driver, category):
 
         # 4. 等待 iframe 出現並切換 (取代 sleep(1))
         # wait.until 會在 iframe 一出現的瞬間就繼續，比 sleep(1) 快且穩
-        wait.until(EC.presence_of_element_located((By.TAG_NAME, 'iframe')))
-        driver.switch_to.frame(driver.find_element(By.TAG_NAME, 'iframe'))
+        iframe = wait.until(EC.presence_of_element_located((By.TAG_NAME, 'iframe')))
+        t0 = time.time()
+        _wait_opaque(driver, iframe)
+        driver.switch_to.frame(iframe)
+        _wait_frame_ready(driver)
+        time.sleep(0.2)  # 給合成器把最後一幀畫上去
+        print(f"DEBUG: 等彈窗淡入／QR 載入 {time.time() - t0:.2f}s", flush=True)
         
         # 5. 設定路徑與存檔
         current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -307,7 +372,8 @@ def _get_image_sync(driver, category):
         driver.save_screenshot(image_path)
         crop_center(image_path, image_path_crop, 400, 700)
         
-        print(f"✅ 截圖已儲存並裁切：{image_path_crop}")
+        hist_name = _save_history(image_path_crop, img_dir, category)
+        print(f"✅ 截圖已儲存並裁切：{image_path_crop}（留存 history/{hist_name}）")
 
         # 7. 清理狀態：切回主頁面並刷新，避免影響下次操作
         driver.switch_to.default_content()
