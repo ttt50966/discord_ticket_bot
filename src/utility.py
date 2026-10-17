@@ -339,6 +339,7 @@ def _get_image_sync(driver, category):
         qr_xpath = f'//div[contains(text(), "{category}")]//following::button[contains(text(), "QRCode")][1]'
         
         print(f"DEBUG: 正在等待 [{category}] 的 QR Code 按鈕出現...", flush=True)
+        t_start = time.time()
         
         # 2. 使用 WebDriverWait 確保按鈕「已出現」且「可點擊」
         # 這會解決你遇到的 NoneType 問題
@@ -348,14 +349,17 @@ def _get_image_sync(driver, category):
         driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", qr_button)
         driver.execute_script("arguments[0].click();", qr_button)
         print(f"✅ 成功觸發 {category} 的 QR Code 彈窗")
+        t_click = time.time()
 
         # 4. 等待 iframe 出現並切換 (取代 sleep(1))
         # wait.until 會在 iframe 一出現的瞬間就繼續，比 sleep(1) 快且穩
         iframe = wait.until(EC.presence_of_element_located((By.TAG_NAME, 'iframe')))
         t0 = time.time()
         _wait_opaque(driver, iframe)
+        t_opaque = time.time()
         driver.switch_to.frame(iframe)
         _wait_frame_ready(driver)
+        t_ready = time.time()
         time.sleep(0.2)  # 給合成器把最後一幀畫上去
         print(f"DEBUG: 等彈窗淡入／QR 載入 {time.time() - t0:.2f}s", flush=True)
         
@@ -374,10 +378,15 @@ def _get_image_sync(driver, category):
         
         hist_name = _save_history(image_path_crop, img_dir, category)
         print(f"✅ 截圖已儲存並裁切：{image_path_crop}（留存 history/{hist_name}）")
+        print(
+            f"⏱ getImage 分段：按鈕 {t_click - t_start:.2f}s／iframe 出現 {t0 - t_click:.2f}s／"
+            f"淡入 {t_opaque - t0:.2f}s／QR 載完 {t_ready - t_opaque:.2f}s／截圖裁切 {time.time() - t_ready - 0.2:.2f}s",
+            flush=True,
+        )
 
-        # 7. 清理狀態：切回主頁面並刷新，避免影響下次操作
+        # 7. 切回主頁面。不在這裡 refresh（約 4 秒，會拖慢出圖）：
+        #    後面 check_ticket_num 每輪輪詢都會 refresh，結束後也會登出重登
         driver.switch_to.default_content()
-        driver.refresh()
 
     except TimeoutException:
         print(f"❌ 錯誤：在 15 秒內找不到 {category} 的按鈕或 QR Code 視窗未彈出", flush=True)

@@ -1,5 +1,6 @@
 import asyncio
 import os
+import time
 from datetime import date, datetime, timezone
 
 import discord
@@ -32,6 +33,7 @@ async def get_ticket(bot, interaction: discord.Interaction, category, driver_man
         return
 
     welcome_messages_dict = {}
+    dm_message = None  # 私訊備份的 QR（ephemeral 重開 Discord 會消失）；結束時一律收回
     finish_messages_dict = {}
     logged_in = False
     driver = None
@@ -39,7 +41,9 @@ async def get_ticket(bot, interaction: discord.Interaction, category, driver_man
     # 鎖定 driver（同一時間只允許一件事使用瀏覽器）
     await bot.ticket_lock.acquire()
     try:
+        t_cmd = time.time()
         driver = await asyncio.to_thread(driver_manager.get_driver)
+        t_driver = time.time()
 
         await interaction.followup.send(f"{sender_name} 您好，請稍等 30 秒~", ephemeral=True)
 
@@ -58,8 +62,10 @@ async def get_ticket(bot, interaction: discord.Interaction, category, driver_man
                 await channel.send("登入系統時出現問題")
             return
         logged_in = True
+        t_login = time.time()
 
         await getImage(driver, category)
+        t_image = time.time()
 
         res_num = get_ticket_num(driver, category)
         if res_num is None:
@@ -91,7 +97,23 @@ async def get_ticket(bot, interaction: discord.Interaction, category, driver_man
             empty_pic = discord.File(empty_path, filename="empty.png")
 
             # 更新原本的延遲訊息 (edit_original_response)
-            await interaction.edit_original_response(content=f"已傳送 {category} QR Code，請在三分鐘之內使用喔", attachments=[picture])
+            t_up = time.time()
+            sent_msg = await interaction.edit_original_response(content=f"已傳送 {category} QR Code，請在三分鐘之內使用喔", attachments=[picture])
+            att = sent_msg.attachments[0] if sent_msg.attachments else None
+            print(
+                f"⏱ 出票分段：driver {t_driver - t_cmd:.2f}s／登入 {t_login - t_driver:.2f}s／截圖 {t_image - t_login:.2f}s／"
+                f"上傳 {time.time() - t_up:.2f}s／總計 {time.time() - t_cmd:.2f}s｜Discord 回傳附件 {att.size if att else None} bytes",
+                flush=True,
+            )
+
+            # 私訊備份一份：ephemeral 在重開 Discord 後會消失，QR 未被刷前不會更新，所以只給申請人本人
+            try:
+                dm_message = await interaction.user.send(
+                    f"{category} QR Code 備份：如果頻道裡的圖沒顯示或重開 Discord 後不見，用這張即可。這張只給你本人使用，轉給別人使用仍向你收費；逾時未使用會自動收回。",
+                    file=discord.File(image_path, filename="screenshot_crop.png"),
+                )
+            except Exception as e:
+                print(f"QR 私訊備份失敗（維持僅頻道內顯示）: {e}")
 
             # 救生班期間（2026-08-31 ~ 2026-09-21）泳池票額外提醒
             today = datetime.now(timezone.utc).astimezone().date()
@@ -174,6 +196,14 @@ async def get_ticket(bot, interaction: discord.Interaction, category, driver_man
                     await sent_message.delete()
                 except Exception as e:
                     print(f"刪除等待訊息失敗: {e}")
+
+            # 收回私訊備份：下一位申請人會拿到同一張 QR，舊圖不能留著
+            if dm_message is not None:
+                try:
+                    empty_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'img', 'empty.png')
+                    await dm_message.edit(content=f"此 {category} QR Code 已收回，需要請重新申請。", attachments=[discord.File(empty_path, filename="empty.png")])
+                except Exception as e:
+                    print(f"收回私訊 QR 失敗: {e}")
 
             if logged_in:
                 if not await logout(driver):
