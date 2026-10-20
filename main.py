@@ -700,6 +700,9 @@ async def ticket(interaction: discord.Interaction):
 
         #如果沒有付款碼，請把下面程式碼的註解消除，並註解掉上一行
         qrcode = discord.File(qrcode_path, filename="empty.png")
+        # iOS 上 ephemeral 的純附件圖載不出來，改放進 embed 走另一條渲染路徑
+        qr_embed = discord.Embed()
+        qr_embed.set_image(url="attachment://empty.png")
 
         accounts = _transfer_accounts()
         transfer_info = "轉帳資料：\n" + "\n".join(f"{bank}：**{acc}**" for bank, acc in accounts) if accounts else ""
@@ -729,6 +732,7 @@ async def ticket(interaction: discord.Interaction):
 如果有其他問題，歡迎私訊 **{contact_full_name_env}** (´･ω･`)
             """,
             file=qrcode,
+            embed=qr_embed,
             ephemeral=True
         )
     else:
