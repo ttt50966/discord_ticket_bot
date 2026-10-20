@@ -685,9 +685,6 @@ async def handle_remaining_check(interaction: discord.Interaction):
 @bot.tree.command(name="help", description=f"{bot_name_env}怎麼用")
 async def ticket(interaction: discord.Interaction):
     if str(interaction.channel_id) in target_channel_ids:
-        # 告訴 Discord 正在處理，延遲回應
-        await interaction.response.defer(ephemeral=True)
-
         qrcode_path = os.path.join('img', 'payment_qrcode.png')
         
         # 檢查文件是否存在，防止出錯
@@ -695,7 +692,7 @@ async def ticket(interaction: discord.Interaction):
             qrcode_path = os.path.join('img', 'payment_qrcode_example.png')
         
         if not os.path.exists(qrcode_path):
-            await interaction.followup.send("出錯了，請聯絡管理員")
+            await interaction.response.send_message("出錯了，請聯絡管理員", ephemeral=True)
             return
         
         
@@ -707,8 +704,8 @@ async def ticket(interaction: discord.Interaction):
         accounts = _transfer_accounts()
         transfer_info = "轉帳資料：\n" + "\n".join(f"{bank}：**{acc}**" for bank, acc in accounts) if accounts else ""
 
-        # 發送消息並附加文件
-        await interaction.followup.send(
+        # 不 defer，附件跟第一個回應一起送（iOS 上 defer+followup 的 ephemeral 附件載不出來）
+        await interaction.response.send_message(
             f"""請在 **{target_channel_name}** 頻道中
 
 **發送 `/給我游泳池票`** 以索取台大游泳池 QR Code
