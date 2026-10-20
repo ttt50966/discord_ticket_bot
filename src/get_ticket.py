@@ -98,7 +98,10 @@ async def get_ticket(bot, interaction: discord.Interaction, category, driver_man
 
             # 更新原本的延遲訊息 (edit_original_response)
             t_up = time.time()
-            sent_msg = await interaction.edit_original_response(content=f"已傳送 {category} QR Code，請在三分鐘之內使用喔", attachments=[picture])
+            # iOS 上 ephemeral 的純附件圖載不出來，放進 embed 走另一條渲染路徑
+            qr_embed = discord.Embed()
+            qr_embed.set_image(url="attachment://screenshot_crop.png")
+            sent_msg = await interaction.edit_original_response(content=f"已傳送 {category} QR Code，請在三分鐘之內使用喔", embed=qr_embed, attachments=[picture])
             att = sent_msg.attachments[0] if sent_msg.attachments else None
             print(
                 f"⏱ 出票分段：driver {t_driver - t_cmd:.2f}s／登入 {t_login - t_driver:.2f}s／截圖 {t_image - t_login:.2f}s／"
@@ -129,7 +132,7 @@ async def get_ticket(bot, interaction: discord.Interaction, category, driver_man
             success = await check_ticket_num(driver, ticket_num, category)
             if success is None:
                 # 查票數失敗，使用狀態不明：收回 QR Code 並請使用者找管理員確認
-                await interaction.edit_original_response(content="獲取票卷張數時出現問題，請聯絡管理員確認票卷使用狀態", attachments=[empty_pic])
+                await interaction.edit_original_response(content="獲取票卷張數時出現問題，請聯絡管理員確認票卷使用狀態", embed=None, attachments=[empty_pic])
                 channel = bot.get_channel(int(interaction.channel_id))
                 if channel:
                     await channel.send("獲取票卷張數時出現問題")
@@ -139,7 +142,7 @@ async def get_ticket(bot, interaction: discord.Interaction, category, driver_man
 
             if success:
                 # 更新訊息為成功 (注意 attachments 傳入空列表或新圖片)
-                await interaction.edit_original_response(content=f"{sender_name} 已成功使用 {category} 票卷！ \n\n 再請你匯款、Line Pay 或是街口支付了，詳細資訊可以發送 /help 來獲取喔", attachments=[empty_pic])
+                await interaction.edit_original_response(content=f"{sender_name} 已成功使用 {category} 票卷！ \n\n 再請你匯款、Line Pay 或是街口支付了，詳細資訊可以發送 /help 來獲取喔", embed=None, attachments=[empty_pic])
                 ticket_num = ticket_num - 1
 
                 if user:
@@ -153,7 +156,7 @@ async def get_ticket(bot, interaction: discord.Interaction, category, driver_man
                         print(f"私訊失敗: {e}")
 
             else:
-                await interaction.edit_original_response(content=f"{sender_name} 未使用 {category} QR Code，請重新生成><", attachments=[empty_pic])
+                await interaction.edit_original_response(content=f"{sender_name} 未使用 {category} QR Code，請重新生成><", embed=None, attachments=[empty_pic])
 
                 if user:
                     try:
