@@ -14,7 +14,12 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from src.get_ticket import get_ticket
-from src.ticket_records import TICKET_PRICES, load_records, mark_reminded
+from src.ticket_records import (
+    TICKET_PRICES,
+    load_records,
+    mark_reminded,
+    save_remaining,
+)
 from src.unpaid_list import add_unpaid, is_unpaid, list_unpaid, remove_unpaid
 from src.utility import BrowserCriticalError, get_ticket_num, login, logout
 
@@ -662,6 +667,13 @@ async def handle_remaining_check(interaction: discord.Interaction):
             gym_num = await asyncio.to_thread(get_ticket_num, driver, "健身中心")
 
             await logout(driver)
+
+        for category, num in (("游泳池", swim_num), ("健身中心", gym_num)):
+            if num is not None:
+                try:
+                    save_remaining(category, int(num), "查詢")
+                except Exception as e:
+                    print(f"寫入剩餘張數失敗: {e}")
 
         swim_text = f"**{swim_num}** 張" if swim_num is not None else "查詢失敗"
         gym_text = f"**{gym_num}** 張" if gym_num is not None else "查詢失敗"

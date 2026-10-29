@@ -5,7 +5,7 @@ from datetime import date, datetime, timezone
 
 import discord
 
-from src.ticket_records import add_record
+from src.ticket_records import add_record, save_remaining
 from src.utility import (
     BrowserCriticalError,
     check_ticket_num,
@@ -144,6 +144,10 @@ async def get_ticket(bot, interaction: discord.Interaction, category, driver_man
                 # 更新訊息為成功 (注意 attachments 傳入空列表或新圖片)
                 await interaction.edit_original_response(content=f"{sender_name} 已成功使用 {category} 票卷！ \n\n 再請你匯款、Line Pay 或是街口支付了，詳細資訊可以發送 /help 來獲取喔", embed=None, attachments=[empty_pic])
                 ticket_num = ticket_num - 1
+                try:
+                    save_remaining(category, ticket_num, "取票")
+                except Exception as e:
+                    print(f"寫入剩餘張數失敗: {e}")
 
                 if user:
                     try:

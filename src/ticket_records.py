@@ -37,6 +37,20 @@ def add_record(user_id: int, name: str, category: str, dm_message_id: int, remai
     _save(data)
 
 
+_REMAINING_PATH = os.path.join(os.path.dirname(_DATA_PATH), 'remaining.json')
+
+
+def save_remaining(category: str, remaining: int, source: str):
+    """記下各類別最新已知剩餘張數（取票成功或 /剩餘票數 查詢），給 KC Home 狀態頁讀"""
+    data = {}
+    if os.path.exists(_REMAINING_PATH):
+        with open(_REMAINING_PATH, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+    data[category] = {"remaining": remaining, "ts": datetime.datetime.now(datetime.timezone.utc).isoformat(), "source": source}
+    with open(_REMAINING_PATH, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
 def load_records() -> list:
     """回傳全部紀錄"""
     return _load()
