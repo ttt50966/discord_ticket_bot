@@ -149,7 +149,7 @@ async def get_ticket(bot, interaction: discord.Interaction, category, driver_man
                     try:
                         sent = await user.send(f"{sender_name} 成功使用 {category} QR Code，剩餘 {ticket_num} 張")
                         try:
-                            add_record(interaction.user.id, sender_name, category, sent.id)
+                            add_record(interaction.user.id, sender_name, category, sent.id, remaining=ticket_num)
                         except Exception as e:
                             print(f"寫入票券紀錄失敗: {e}")
                     except Exception as e:

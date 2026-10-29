@@ -21,7 +21,8 @@ def _save(data: list):
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
-def add_record(user_id: int, name: str, category: str, dm_message_id: int):
+def add_record(user_id: int, name: str, category: str, dm_message_id: int, remaining: int | None = None):
+    """remaining：這張用掉後該類別還剩幾張（KC Home 狀態頁讀最後一筆顯示，2026-10-29 起才有）"""
     data = _load()
     data.append({
         "user_id": user_id,
@@ -31,6 +32,7 @@ def add_record(user_id: int, name: str, category: str, dm_message_id: int):
         "ts": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "dm_message_id": dm_message_id,
         "last_reminded": None,
+        "remaining": remaining,
     })
     _save(data)
 
