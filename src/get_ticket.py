@@ -6,6 +6,7 @@ from datetime import date, datetime, timezone
 import discord
 
 from src.ticket_records import add_record, save_remaining
+from src.tg_notify import notify_tg
 from src.utility import (
     BrowserCriticalError,
     check_ticket_num,
@@ -82,13 +83,8 @@ async def get_ticket(bot, interaction: discord.Interaction, category, driver_man
             channel = bot.get_channel(int(interaction.channel_id))
             if channel:
                 await channel.send(f"{category} 票卷不足，請加值><（剩餘 {ticket_num} 張）")
+            await notify_tg(f"🎫 {category} 票卷不足，已無法出票（剩餘 {ticket_num} 張），請加值")
         else:
-            if ticket_num < 6:
-                # 頻道廣播訊息依然用 channel.send
-                channel = bot.get_channel(int(interaction.channel_id))
-                if channel:
-                    await channel.send(f"{category} 票卷即將不足，請加值><（剩餘 {ticket_num} 張）")
-
             base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             image_path = os.path.join(base_dir, 'img', 'screenshot_crop.png')
             empty_path = os.path.join(base_dir, 'img', 'empty.png')
@@ -148,6 +144,13 @@ async def get_ticket(bot, interaction: discord.Interaction, category, driver_man
                     save_remaining(category, ticket_num, "取票")
                 except Exception as e:
                     print(f"寫入剩餘張數失敗: {e}")
+
+                # 剩 5 張以下才能加值：用「用掉後」的實際張數判斷，6 張不提醒
+                if ticket_num <= 5:
+                    channel = bot.get_channel(int(interaction.channel_id))
+                    if channel:
+                        await channel.send(f"{category} 票卷即將不足，請加值><（剩餘 {ticket_num} 張）")
+                    await notify_tg(f"🎫 {category} 剩 {ticket_num} 張，可以加值了")
 
                 if user:
                     try:
