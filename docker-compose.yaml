@@ -4,6 +4,9 @@ services:
     build: .
     container_name: discord_ticket_bot
     restart: always
+
+    # 記憶體上限：整台只有 905 MB，超標讓它自己 OOM 重啟，不要拖垮全機
+    mem_limit: 550m
     env_file:
       - .env
     
