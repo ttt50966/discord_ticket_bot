@@ -151,7 +151,7 @@ def _resolve_qrcode_path():
     return qrcode_path
 
 
-async def _get_unpaid_summary():
+async def _get_unpaid_summary(user_id: int | None = None):
     """
     逐筆核對 data/ticket_records.json 裡的紀錄，在 maintainer DM 上檢查 reaction 狀態。
 
@@ -159,10 +159,14 @@ async def _get_unpaid_summary():
       unresolved：尚未解決的紀錄（原始欄位 + age_days，未付款天數）
       broken：dm_message_id 在 maintainer DM 裡已經找不到訊息的紀錄（標記「紀錄異常」）
       dm：maintainer 的 DM channel，供呼叫端重複使用（例如舊格式全文掃描）
+
+    user_id：只查這個人的紀錄（每筆都要 fetch 一次 DM 訊息，全查很慢）
     """
     maintainer = await bot.fetch_user(int(maintainer_id_env))
     dm = maintainer.dm_channel or await maintainer.create_dm()
     records = load_records()
+    if user_id is not None:
+        records = [r for r in records if r["user_id"] == user_id]
     now = datetime.datetime.now(datetime.timezone.utc)
 
     unresolved = []
@@ -491,7 +495,7 @@ async def on_message(message):
                     target_id = int(parts[2])
                     target_user = await bot.fetch_user(target_id)
                     username = target_user.display_name if target_user else str(target_id)
-                    unresolved, _broken, _dm = await _get_unpaid_summary()
+                    unresolved, _broken, _dm = await _get_unpaid_summary(target_id)
                     debts = []
                     for r in sorted(unresolved, key=lambda r: r["ts"]):
                         if r["user_id"] != target_id:
