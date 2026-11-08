@@ -201,6 +201,43 @@ def _format_debt(d):
     return f"• {d['date']} {d['category']}票 — {d['amount']} 元"
 
 
+def _format_blacklist(data):
+    """
+    unpaid list 的輸出：一人一個區塊，名字＋欠款總額放第一行，日期第二行，ID 縮小放第三行。
+    依最早欠款日排序（欠最久的在上面），沒有明細的舊資料排最後。
+    """
+    def sort_key(item):
+        debts = item[1]["debts"]
+        return min(d["date"] for d in debts) if debts else "9999"
+
+    this_year = str(datetime.date.today().year)
+    grand_total = 0
+    blocks = []
+    for uid, entry in sorted(data.items(), key=sort_key):
+        debts = sorted(entry["debts"], key=lambda d: d["date"])
+        total = sum(d["amount"] for d in debts)
+        grand_total += total
+        if debts:
+            count = f"（{len(debts)} 筆）" if len(debts) > 1 else ""
+            head = f"**{entry['name']}** — {total} 元{count}"
+            by_cat = {}
+            for d in debts:
+                y, m, day = d["date"].split("-")
+                date = f"{int(m)}/{int(day)}" if y == this_year else f"{y}/{int(m)}/{int(day)}"
+                by_cat.setdefault(d["category"], []).append(date)
+            detail = "　".join(f"{cat} {'、'.join(dates)}" for cat, dates in by_cat.items())
+            lines = [head, f"　{detail}"]
+        else:
+            lines = [f"**{entry['name']}** — 未記錄欠款明細"]
+        meta = f"ID {uid}"
+        if entry["added_at"]:
+            meta += f" · {entry['added_at']} 加入"
+        lines.append(f"-# {meta}")
+        blocks.append("\n".join(lines))
+    header = f"📋 **欠款名單：{len(data)} 人，共 {grand_total} 元**"
+    return header + "\n\n" + "\n\n".join(blocks)
+
+
 def _group_unpaid_by_user(records):
     """依 user_id 彙總未解決紀錄，回傳 {user_id: {"name", "records", "total", "oldest_age"}}"""
     groups = {}
@@ -530,12 +567,7 @@ async def on_message(message):
                 if not data:
                     await message.reply("📋 欠款名單目前是空的")
                 else:
-                    lines = []
-                    for uid, entry in data.items():
-                        added = f"（{entry['added_at']} 加入）" if entry["added_at"] else ""
-                        lines.append(f"• `{uid}` — {entry['name']}{added}")
-                        lines.extend(f"  {_format_debt(d)}" for d in entry["debts"])
-                    await _reply_in_chunks(message, "📋 **目前欠款名單：**\n" + "\n".join(lines))
+                    await _reply_in_chunks(message, _format_blacklist(data))
 
             elif sub == "check":
                 # 以結構化紀錄檔（data/ticket_records.json）為主，逐筆核對 maintainer DM 的 reaction 狀態
