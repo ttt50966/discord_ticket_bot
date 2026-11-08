@@ -1,6 +1,11 @@
 # 這個 bot 大量使用「攔截所有例外並 print、繼續跑」的防禦式寫法，
 # 是刻意的設計（Discord 互動流程不能因單一步驟失敗而整個中斷）。
 # 只採用 ruff 預設規則集，額外關掉與既有風格衝突的檢查。
+
+# Dockerfile 是 python:3.10-slim；不設的話 ruff 會把 datetime.timezone.utc
+# 改成 3.11+ 才有的 datetime.UTC，容器一跑就壞
+target-version = "py310"
+
 lint.ignore = [
     "BLE001",  # 允許 except Exception
     "S110",    # 允許 try/except/pass
