@@ -192,6 +192,11 @@ async def _get_unpaid_summary():
     return unresolved, broken, dm
 
 
+def _format_debt(d):
+    """黑名單欠款明細一行：• 2026-10-01 一般票 — 100 元"""
+    return f"• {d['date']} {d['category']}票 — {d['amount']} 元"
+
+
 def _group_unpaid_by_user(records):
     """依 user_id 彙總未解決紀錄，回傳 {user_id: {"name", "records", "total", "oldest_age"}}"""
     groups = {}
@@ -486,8 +491,20 @@ async def on_message(message):
                     target_id = int(parts[2])
                     target_user = await bot.fetch_user(target_id)
                     username = target_user.display_name if target_user else str(target_id)
-                    add_unpaid(target_id, username)
-                    await message.reply(f"✅ 已將 **{username}**（`{target_id}`）加入欠款名單")
+                    unresolved, _broken, _dm = await _get_unpaid_summary()
+                    debts = []
+                    for r in sorted(unresolved, key=lambda r: r["ts"]):
+                        if r["user_id"] != target_id:
+                            continue
+                        ts = datetime.datetime.fromisoformat(r["ts"]).astimezone()
+                        debts.append({"date": ts.date().isoformat(), "category": r["category"], "amount": r["amount"]})
+                    add_unpaid(target_id, username, debts)
+                    reply = f"✅ 已將 **{username}**（`{target_id}`）加入欠款名單"
+                    if debts:
+                        reply += "\n" + "\n".join(_format_debt(d) for d in debts)
+                    else:
+                        reply += "\n（紀錄檔裡找不到他的未付款票，沒有記到日期）"
+                    await message.reply(reply)
                 except ValueError:
                     await message.reply("❌ 請輸入有效的 User ID，例如：`unpaid add 123456789`")
                 except Exception as e:
@@ -509,8 +526,12 @@ async def on_message(message):
                 if not data:
                     await message.reply("📋 欠款名單目前是空的")
                 else:
-                    lines = [f"• `{uid}` — {name}" for uid, name in data.items()]
-                    await message.reply("📋 **目前欠款名單：**\n" + "\n".join(lines))
+                    lines = []
+                    for uid, entry in data.items():
+                        added = f"（{entry['added_at']} 加入）" if entry["added_at"] else ""
+                        lines.append(f"• `{uid}` — {entry['name']}{added}")
+                        lines.extend(f"  {_format_debt(d)}" for d in entry["debts"])
+                    await _reply_in_chunks(message, "📋 **目前欠款名單：**\n" + "\n".join(lines))
 
             elif sub == "check":
                 # 以結構化紀錄檔（data/ticket_records.json）為主，逐筆核對 maintainer DM 的 reaction 狀態
@@ -539,11 +560,17 @@ async def on_message(message):
                     sections.append("⚠️ **14–30 天未付：**\n" + "\n".join(lines))
 
                 if bucket_30:
-                    lines = []
-                    for uid, g in bucket_30:
-                        lines.append(f"• {g['name']} — {len(g['records'])} 筆，{g['total']} 元")
-                        lines.append(f"  → 複製執行：unpaid add {uid}")
-                    sections.append("🚫 **超過 30 天，建議加入黑名單：**\n" + "\n".join(lines))
+                    to_ban = [(uid, g) for uid, g in bucket_30 if not is_unpaid(uid)]
+                    banned = [(uid, g) for uid, g in bucket_30 if is_unpaid(uid)]
+                    if to_ban:
+                        lines = []
+                        for uid, g in to_ban:
+                            lines.append(f"• {g['name']} — {len(g['records'])} 筆，{g['total']} 元")
+                            lines.append(f"  → 複製執行：unpaid add {uid}")
+                        sections.append("🚫 **超過 30 天，建議加入黑名單：**\n" + "\n".join(lines))
+                    if banned:
+                        lines = [f"• {g['name']} — {len(g['records'])} 筆，{g['total']} 元" for _, g in banned]
+                        sections.append("⛔ **超過 30 天（已在黑名單）：**\n" + "\n".join(lines))
 
                 if broken:
                     lines = []

@@ -1,3 +1,4 @@
+import datetime
 import json
 import os
 
@@ -17,13 +18,28 @@ def _save(data: dict):
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
+def _normalize(entry) -> dict:
+    """舊格式的值只是 username 字串，轉成新格式（無欠款明細）"""
+    if isinstance(entry, str):
+        return {"name": entry, "added_at": None, "debts": []}
+    return entry
+
+
 def is_unpaid(user_id: int) -> bool:
     return str(user_id) in _load()
 
 
-def add_unpaid(user_id: int, username: str = ""):
+def add_unpaid(user_id: int, username: str = "", debts: list | None = None):
+    """
+    debts：加入當下的未付款票，[{"date": "YYYY-MM-DD", "category", "amount"}]，
+    記下來之後就算 ticket_records 被清掉也查得到他欠的是哪幾天。
+    """
     data = _load()
-    data[str(user_id)] = username
+    data[str(user_id)] = {
+        "name": username,
+        "added_at": datetime.date.today().isoformat(),
+        "debts": debts or [],
+    }
     _save(data)
 
 
@@ -38,5 +54,5 @@ def remove_unpaid(user_id: int) -> bool:
 
 
 def list_unpaid() -> dict:
-    """回傳 {user_id_str: username} 字典"""
-    return _load()
+    """回傳 {user_id_str: {"name", "added_at", "debts"}} 字典（舊格式自動轉換）"""
+    return {uid: _normalize(v) for uid, v in _load().items()}

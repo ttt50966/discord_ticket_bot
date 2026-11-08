@@ -126,7 +126,7 @@ The bot will send the message that the bot has been fixed.
    unpaid add <user_id>
 ```
 
-Add a user to the unpaid list by their Discord User ID. The user will be blocked from requesting tickets until removed.
+Add a user to the unpaid list by their Discord User ID. The user will be blocked from requesting tickets until removed. The user's currently unpaid tickets (date, category, amount) are saved with the blacklist entry, so the debt dates stay on record.
 To find a user's ID: enable Developer Mode in Discord settings, then right-click the user and select "Copy User ID".
 
 6.
@@ -141,7 +141,7 @@ Remove a user from the unpaid list, restoring their ability to request tickets.
    unpaid list
 ```
 
-Display all users currently on the unpaid list.
+Display all users currently on the unpaid list, with the date they were added and the unpaid ticket dates recorded at that time.
 
 8.
 ```sh
@@ -152,6 +152,7 @@ List all unpaid ticket records, grouped by age:
 - **⏰ Within 14 days** — will be covered by `unpaid remind`
 - **⚠️ 14–30 days** — shown for manual follow-up
 - **🚫 Over 30 days** — a ready-to-copy `unpaid add <user_id>` command is attached, suggesting a blacklist
+- **⛔ Over 30 days (already blacklisted)** — listed for reference only, no `unpaid add` suggestion
 
 Records are read from `data/ticket_records.json` (written automatically on every successful ticket use since this feature landed) and cross-checked against the reactions on the bot's DM notifications. Old-format DMs (before the record file existed) are still scanned as a fallback and listed separately.
 
