@@ -131,7 +131,7 @@ ADMIN_HELP_TEXT = """🛠 **管理指令總覽**（僅 maintainer 可用）
 • `unpaid list` — 查看黑名單
 • `unpaid check` — 欠款總覽：14 天內／14–30 天／逾 30 天（附 ban 建議指令）
 • `unpaid remind dryrun` — 預覽催繳名單與文案（不發送）
-• `unpaid remind` — DM 催繳 14 天內未付者（自動跳過黑名單與 3 天內已催過者）
+• `unpaid remind` — DM 催繳 14 天內有新欠款者，連同舊帳一起列（自動跳過黑名單與 3 天內已催過者）
 
 **銷帳方式**
 在 bot 私訊你的「成功使用」通知上按 reaction：
@@ -304,8 +304,13 @@ def _build_reminder_text(display_name, records):
 async def _handle_unpaid_remind(message, dryrun: bool):
     """unpaid remind / unpaid remind dryrun 共用邏輯"""
     unresolved, _broken, _dm = await _get_unpaid_summary()
-    recent = [r for r in unresolved if r["age_days"] < 14]
-    groups = _group_unpaid_by_user(recent)
+    # 有 14 天內新欠款的人才催；但 DM 要列出他「所有」未付紀錄（含 14 天前的舊帳），
+    # 否則上次催過沒還、又欠新的，只會看到新那筆，以為只欠一筆
+    groups = {
+        uid: g
+        for uid, g in _group_unpaid_by_user(unresolved).items()
+        if any(r["age_days"] < 14 for r in g["records"])
+    }
 
     if not groups:
         await message.reply("✅ 目前沒有 14 天內的待催繳紀錄")
@@ -332,8 +337,10 @@ async def _handle_unpaid_remind(message, dryrun: bool):
         preview_sections = [f"🔍 **催繳試跑（Dry Run，將私訊 {len(to_send)} 人）：**"]
         for uid, g in to_send:
             text = _build_reminder_text(g["name"], g["records"])
+            n_old = sum(1 for r in g["records"] if r["age_days"] >= 14)
+            old_note = f"（含 {n_old} 筆逾 14 天）" if n_old else ""
             preview_sections.append(
-                f"👤 **{g['name']}**（`{uid}`）— {len(g['records'])} 筆，{g['total']} 元\n"
+                f"👤 **{g['name']}**（`{uid}`）— {len(g['records'])} 筆{old_note}，{g['total']} 元\n"
                 f"───\n{text}\n───"
             )
         if skipped:
